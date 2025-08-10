@@ -46,7 +46,7 @@ const ControlButton = styled.button`
   background: #c0c0c0;
   border: 2px outset #c0c0c0;
   padding: 8px 16px;
-  font-family: 'MS Sans Serif', sans-serif;
+  font-family: 'Sango-JA-SVG', sans-serif;
   font-size: 11px;
   cursor: pointer;
   
@@ -65,7 +65,7 @@ const SongInfo = styled.div`
   top: 20px;
   left: 20px;
   color: #fff;
-  font-family: 'MS Sans Serif', sans-serif;
+  font-family: 'Sango-JA-SVG', sans-serif;
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
   opacity: 0;
   transition: opacity 0.3s;
@@ -91,7 +91,7 @@ const ExitHint = styled.div`
   top: 20px;
   right: 20px;
   color: #fff;
-  font-family: 'MS Sans Serif', sans-serif;
+  font-family: 'Sango-JA-SVG', sans-serif;
   font-size: 12px;
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
   opacity: 0.7;

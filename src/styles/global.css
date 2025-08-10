@@ -11,7 +11,7 @@ html, body {
   height: 100%;
   overflow: hidden;
   background: #000;
-  font-family: 'MS Sans Serif', sans-serif;
+  font-family: 'Sango-JA-SVG', sans-serif;
 }
 
 #root {
@@ -89,6 +89,26 @@ html, body {
     inset 0 0 20px rgba(0, 0, 0, 0.8),
     0 0 40px rgba(0, 0, 0, 0.5);
   position: relative;
+  /* 添加鱼眼变形效果 */
+  transform: perspective(800px) rotateX(2deg) rotateY(-1deg);
+  filter: 
+    contrast(1.1) 
+    brightness(0.95) 
+    saturate(1.2)
+    blur(0.3px);
+  /* 添加不规则边界 */
+  clip-path: polygon(
+    2% 0%, 
+    98% 1%, 
+    99% 98%, 
+    1% 97%
+  );
+  /* 添加边界扭曲动画 */
+  animation: 
+    glitch-main 3s infinite,
+    fisheye-distort 8s ease-in-out infinite alternate,
+    irregular-border 12s ease-in-out infinite;
+
 }
 
 .crt-monitor::before {
@@ -108,6 +128,42 @@ html, body {
   );
   border-radius: 15px;
   z-index: -1;
+}
+
+/* RGB通道分离效果层 */
+.crt-monitor::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    linear-gradient(90deg, transparent 98%, rgba(255, 0, 0, 0.03) 100%),
+    linear-gradient(90deg, rgba(0, 255, 255, 0.03) 0%, transparent 2%);
+  mix-blend-mode: screen;
+  animation: rgb-glitch 2s infinite;
+  pointer-events: none;
+  z-index: 999;
+}
+
+/* Glitch干扰条纹 */
+.glitch-lines {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(255, 255, 255, 0.03) 2px,
+    rgba(255, 255, 255, 0.03) 4px
+  );
+  animation: glitch-lines 0.5s infinite;
+  pointer-events: none;
+  z-index: 998;
 }
 
 /* 扫描线效果 */
@@ -144,6 +200,410 @@ html, body {
   animation: flicker 0.15s infinite linear;
 }
 
+/* Glitch故障效果动画 */
+@keyframes glitch-main {
+  0%, 100% {
+    transform: perspective(800px) rotateX(2deg) rotateY(-1deg) translate(0, 0);
+    filter: 
+      contrast(1.1) 
+      brightness(0.95) 
+      saturate(1.2)
+      blur(0.3px)
+      hue-rotate(0deg);
+  }
+  2% {
+    transform: perspective(800px) rotateX(2deg) rotateY(-1deg) translate(-2px, 1px);
+    filter: 
+      contrast(1.3) 
+      brightness(0.8) 
+      saturate(1.5)
+      blur(0.5px)
+      hue-rotate(5deg);
+  }
+  4% {
+    transform: perspective(800px) rotateX(2deg) rotateY(-1deg) translate(2px, -1px);
+    filter: 
+      contrast(0.9) 
+      brightness(1.1) 
+      saturate(0.8)
+      blur(0.2px)
+      hue-rotate(-3deg);
+  }
+  6% {
+    transform: perspective(800px) rotateX(2deg) rotateY(-1deg) translate(0, 0);
+  }
+  94% {
+    transform: perspective(800px) rotateX(2deg) rotateY(-1deg) translate(0, 0);
+  }
+  96% {
+    transform: perspective(800px) rotateX(2deg) rotateY(-1deg) translate(-1px, 2px);
+    filter: 
+      contrast(1.2) 
+      brightness(0.9) 
+      saturate(1.3)
+      blur(0.4px)
+      hue-rotate(2deg);
+  }
+  98% {
+    transform: perspective(800px) rotateX(2deg) rotateY(-1deg) translate(1px, -2px);
+  }
+}
+
+/* 鱼眼变形动画 */
+ @keyframes fisheye-distort {
+   0% {
+     transform: perspective(800px) rotateX(2deg) rotateY(-1deg) scale(1);
+     border-radius: 15px;
+   }
+   25% {
+     transform: perspective(600px) rotateX(3deg) rotateY(-2deg) scale(1.01) skewX(0.5deg);
+     border-radius: 18px 12px 16px 14px;
+   }
+   50% {
+     transform: perspective(500px) rotateX(4deg) rotateY(-3deg) scale(1.03) skewY(0.3deg);
+     border-radius: 20px 10px 18px 12px;
+   }
+   75% {
+     transform: perspective(700px) rotateX(1deg) rotateY(1deg) scale(0.99) skewX(-0.3deg);
+     border-radius: 14px 16px 12px 18px;
+   }
+   100% {
+     transform: perspective(1000px) rotateX(1deg) rotateY(0deg) scale(0.98);
+     border-radius: 15px;
+   }
+ }
+ 
+ /* 视差层效果 */
+ .parallax-layer {
+   position: absolute;
+   top: 0;
+   left: 0;
+   right: 0;
+   bottom: 0;
+   pointer-events: none;
+ }
+ 
+ .parallax-layer-1 {
+   transform: translateZ(-100px) scale(1.1);
+   animation: parallax-float-1 6s ease-in-out infinite;
+ }
+ 
+ .parallax-layer-2 {
+   transform: translateZ(-50px) scale(1.05);
+   animation: parallax-float-2 8s ease-in-out infinite;
+ }
+ 
+ .parallax-layer-3 {
+   transform: translateZ(-25px) scale(1.02);
+   animation: parallax-float-3 10s ease-in-out infinite;
+ }
+ 
+ /* 视差浮动动画 */
+ @keyframes parallax-float-1 {
+   0%, 100% { transform: translateZ(-100px) scale(1.1) translateY(0px); }
+   50% { transform: translateZ(-100px) scale(1.1) translateY(-2px); }
+ }
+ 
+ @keyframes parallax-float-2 {
+   0%, 100% { transform: translateZ(-50px) scale(1.05) translateY(0px); }
+   50% { transform: translateZ(-50px) scale(1.05) translateY(1px); }
+ }
+ 
+ @keyframes parallax-float-3 {
+    0%, 100% { transform: translateZ(-25px) scale(1.02) translateY(0px); }
+    50% { transform: translateZ(-25px) scale(1.02) translateY(-1px); }
+  }
+  
+  /* 不规则边界动画 */
+  @keyframes irregular-border {
+    0% {
+      clip-path: polygon(
+        2% 0%, 
+        98% 1%, 
+        99% 98%, 
+        1% 97%
+      );
+    }
+    16.66% {
+      clip-path: polygon(
+        1% 2%, 
+        97% 0%, 
+        98% 99%, 
+        3% 96%
+      );
+    }
+    33.33% {
+      clip-path: polygon(
+        3% 1%, 
+        99% 2%, 
+        97% 97%, 
+        0% 98%
+      );
+    }
+    50% {
+      clip-path: polygon(
+        0% 3%, 
+        96% 1%, 
+        100% 96%, 
+        2% 99%
+      );
+    }
+    66.66% {
+      clip-path: polygon(
+        2% 0%, 
+        100% 3%, 
+        98% 98%, 
+        1% 95%
+      );
+    }
+    83.33% {
+      clip-path: polygon(
+        1% 1%, 
+        99% 0%, 
+        97% 99%, 
+        0% 97%
+      );
+    }
+    100% {
+      clip-path: polygon(
+        2% 0%, 
+        98% 1%, 
+        99% 98%, 
+        1% 97%
+      );
+    }
+   }
+   
+   /* Glitch文本动画 */
+   @keyframes glitch-anim-1 {
+     0%, 100% {
+       transform: translate(0);
+       clip-path: polygon(0 2%, 100% 2%, 100% 5%, 0 5%);
+     }
+     10% {
+       transform: translate(-2px, -1px);
+       clip-path: polygon(0 15%, 100% 15%, 100% 20%, 0 20%);
+     }
+     20% {
+       transform: translate(-1px, 1px);
+       clip-path: polygon(0 10%, 100% 10%, 100% 15%, 0 15%);
+     }
+     30% {
+       transform: translate(1px, -1px);
+       clip-path: polygon(0 2%, 100% 2%, 100% 5%, 0 5%);
+     }
+     40% {
+       transform: translate(1px, 1px);
+       clip-path: polygon(0 25%, 100% 25%, 100% 30%, 0 30%);
+     }
+     50% {
+       transform: translate(-1px, 1px);
+       clip-path: polygon(0 50%, 100% 50%, 100% 55%, 0 55%);
+     }
+     60% {
+       transform: translate(-1px, -1px);
+       clip-path: polygon(0 70%, 100% 70%, 100% 75%, 0 75%);
+     }
+     70% {
+       transform: translate(1px, 1px);
+       clip-path: polygon(0 80%, 100% 80%, 100% 85%, 0 85%);
+     }
+     80% {
+       transform: translate(-2px, 1px);
+       clip-path: polygon(0 90%, 100% 90%, 100% 95%, 0 95%);
+     }
+     90% {
+       transform: translate(1px, -1px);
+       clip-path: polygon(0 95%, 100% 95%, 100% 100%, 0 100%);
+     }
+   }
+   
+   @keyframes glitch-anim-2 {
+     0%, 100% {
+       transform: translate(0);
+       clip-path: polygon(0 78%, 100% 78%, 100% 83%, 0 83%);
+     }
+     5% {
+       transform: translate(2px, 1px);
+       clip-path: polygon(0 5%, 100% 5%, 100% 10%, 0 10%);
+     }
+     15% {
+       transform: translate(1px, -1px);
+       clip-path: polygon(0 25%, 100% 25%, 100% 30%, 0 30%);
+     }
+     25% {
+       transform: translate(-1px, 1px);
+       clip-path: polygon(0 40%, 100% 40%, 100% 45%, 0 45%);
+     }
+     35% {
+       transform: translate(-1px, -1px);
+       clip-path: polygon(0 60%, 100% 60%, 100% 65%, 0 65%);
+     }
+     45% {
+       transform: translate(1px, 1px);
+       clip-path: polygon(0 75%, 100% 75%, 100% 80%, 0 80%);
+     }
+     55% {
+       transform: translate(1px, -1px);
+       clip-path: polygon(0 85%, 100% 85%, 100% 90%, 0 90%);
+     }
+     65% {
+       transform: translate(-2px, 1px);
+       clip-path: polygon(0 95%, 100% 95%, 100% 100%, 0 100%);
+     }
+     75% {
+       transform: translate(2px, -1px);
+       clip-path: polygon(0 2%, 100% 2%, 100% 7%, 0 7%);
+     }
+     85% {
+       transform: translate(-1px, 1px);
+       clip-path: polygon(0 15%, 100% 15%, 100% 20%, 0 20%);
+     }
+     95% {
+       transform: translate(1px, 1px);
+       clip-path: polygon(0 78%, 100% 78%, 100% 83%, 0 83%);
+     }
+   }
+   
+   /* 随机抖动动画 */
+   @keyframes random-shake {
+     0%, 100% { transform: translate(0, 0) rotate(0deg); }
+     10% { transform: translate(-1px, -1px) rotate(-0.5deg); }
+     20% { transform: translate(1px, 1px) rotate(0.5deg); }
+     30% { transform: translate(-1px, 1px) rotate(-0.3deg); }
+     40% { transform: translate(1px, -1px) rotate(0.3deg); }
+     50% { transform: translate(-0.5px, 0.5px) rotate(-0.2deg); }
+     60% { transform: translate(0.5px, -0.5px) rotate(0.2deg); }
+     70% { transform: translate(-0.5px, -0.5px) rotate(-0.1deg); }
+     80% { transform: translate(0.5px, 0.5px) rotate(0.1deg); }
+     90% { transform: translate(-0.2px, 0.2px) rotate(-0.05deg); }
+   }
+   
+   /* 微妙故障效果 */
+   @keyframes subtle-glitch {
+     0%, 98%, 100% {
+       transform: translate(0, 0);
+       filter: hue-rotate(0deg);
+     }
+     1% {
+       transform: translate(0.5px, 0);
+       filter: hue-rotate(2deg);
+     }
+     2% {
+       transform: translate(-0.5px, 0);
+       filter: hue-rotate(-2deg);
+     }
+     99% {
+       transform: translate(0.2px, 0);
+       filter: hue-rotate(1deg);
+     }
+   }
+ 
+ /* RGB通道分离效果 */
+ @keyframes rgb-shift {
+   0%, 100% {
+     text-shadow: 
+       0.5px 0 0 #ff0000,
+       -0.5px 0 0 #00ffff;
+   }
+   20% {
+     text-shadow: 
+       2px 0 0 #ff0000,
+       -2px 0 0 #00ffff;
+   }
+   40% {
+     text-shadow: 
+       -1px 0 0 #ff0000,
+       1px 0 0 #00ffff;
+   }
+   60% {
+     text-shadow: 
+       1.5px 0 0 #ff0000,
+       -1.5px 0 0 #00ffff;
+   }
+   80% {
+     text-shadow: 
+       -0.5px 0 0 #ff0000,
+       0.5px 0 0 #00ffff;
+   }
+ }
+ 
+ /* RGB通道故障动画 */
+ @keyframes rgb-glitch {
+   0%, 90%, 100% {
+     transform: translate(0, 0);
+     opacity: 1;
+   }
+   1% {
+     transform: translate(2px, 0);
+     opacity: 0.8;
+   }
+   2% {
+     transform: translate(-2px, 0);
+     opacity: 0.9;
+   }
+   3% {
+     transform: translate(0, 0);
+     opacity: 1;
+   }
+   91% {
+     transform: translate(1px, 0);
+     opacity: 0.7;
+   }
+   92% {
+     transform: translate(-1px, 0);
+     opacity: 0.8;
+   }
+   93% {
+     transform: translate(0, 0);
+     opacity: 1;
+   }
+ }
+ 
+ /* 干扰条纹动画 */
+ @keyframes glitch-lines {
+   0%, 100% {
+     transform: translateY(0);
+     opacity: 0.1;
+   }
+   10% {
+     transform: translateY(-2px);
+     opacity: 0.3;
+   }
+   20% {
+     transform: translateY(1px);
+     opacity: 0.2;
+   }
+   30% {
+     transform: translateY(-1px);
+     opacity: 0.4;
+   }
+   40% {
+     transform: translateY(0);
+     opacity: 0.1;
+   }
+   50% {
+     transform: translateY(2px);
+     opacity: 0.3;
+   }
+   60% {
+     transform: translateY(-1px);
+     opacity: 0.2;
+   }
+   70% {
+     transform: translateY(1px);
+     opacity: 0.4;
+   }
+   80% {
+     transform: translateY(0);
+     opacity: 0.1;
+   }
+   90% {
+     transform: translateY(-2px);
+     opacity: 0.3;
+   }
+ }
+
 /* Win95 窗口样式增强 */
 .win95-window {
   box-shadow: 
@@ -155,10 +615,49 @@ html, body {
 
 /* 像素字体 */
 .pixel-font {
-  font-family: 'MS Sans Serif', 'Courier New', monospace;
+  font-family: 'Sango-JA-SVG', 'Courier New', monospace;
   font-size: 11px;
   line-height: 1.2;
   letter-spacing: 0;
+}
+
+/* Glitch文本效果 */
+.glitch-text {
+  position: relative;
+  animation: rgb-shift 3s infinite;
+}
+
+.glitch-text::before,
+.glitch-text::after {
+  content: attr(data-text);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+}
+
+.glitch-text::before {
+  animation: glitch-anim-1 0.6s infinite;
+  color: #ff0000;
+  z-index: -1;
+}
+
+.glitch-text::after {
+  animation: glitch-anim-2 0.6s infinite;
+  color: #00ffff;
+  z-index: -2;
+}
+
+/* 随机抖动效果 */
+.shake-element {
+  animation: random-shake 0.8s infinite;
+}
+
+/* 微妙的UI元素抖动 */
+.subtle-glitch {
+  animation: subtle-glitch 4s infinite;
 }
 
 /* 禁用平滑滚动 */
@@ -175,7 +674,7 @@ html, body {
 
 /* 移除现代浏览器的默认样式 */
 input, button, select, textarea {
-  font-family: 'MS Sans Serif', sans-serif;
+  font-family: 'Sango-JA-SVG', sans-serif;
   font-size: 11px;
 }
 

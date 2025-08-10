@@ -26,7 +26,7 @@ const DesktopContainer = styled.div`
   background: #008080;
   position: relative;
   overflow: hidden;
-  font-family: 'MS Sans Serif', sans-serif;
+  font-family: 'Sango-JA-SVG', sans-serif;
 `;
 
 // 桌面背景

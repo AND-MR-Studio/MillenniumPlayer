@@ -10,7 +10,7 @@ const MonitorContainer = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: 'MS Sans Serif', sans-serif;
+  font-family: 'Sango-JA-SVG', sans-serif;
   position: relative;
   overflow: hidden;
 `;
@@ -108,7 +108,7 @@ const SystemInfo = styled.div`
   line-height: 1.6;
   margin: 40px 0;
   text-align: left;
-  font-family: 'Courier New', monospace;
+  font-family: 'Sango-JA-SVG', monospace;
   opacity: 0.8;
   
   .line {
@@ -224,7 +224,7 @@ const Startup: React.FC = () => {
       <MonitorScreen>
         <BlueScreenContent>
           <MainTitle>你回来了，现在是2000年</MainTitle>
-          <SubTitle>千禧复古音乐播放器</SubTitle>
+          <SubTitle>千禧播放器</SubTitle>
           
           <SystemInfo>
             <div className="line">Microsoft Windows 95</div>

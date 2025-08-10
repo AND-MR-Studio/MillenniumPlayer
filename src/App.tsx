@@ -4,8 +4,6 @@ import { ThemeProvider } from 'styled-components';
 import { createGlobalStyle } from 'styled-components';
 import original from 'react95/dist/themes/original';
 import { styleReset } from 'react95';
-import ms_sans_serif from 'react95/dist/fonts/ms_sans_serif.woff2';
-import ms_sans_serif_bold from 'react95/dist/fonts/ms_sans_serif_bold.woff2';
 import './styles/global.css';
 
 import Startup from './pages/Startup';
@@ -19,21 +17,14 @@ const GlobalStyles = createGlobalStyle`
   ${styleReset}
   
   @font-face {
-    font-family: 'ms_sans_serif';
-    src: url('${ms_sans_serif}') format('woff2');
-    font-weight: 400;
-    font-style: normal;
-  }
-  
-  @font-face {
-    font-family: 'ms_sans_serif';
-    src: url('${ms_sans_serif_bold}') format('woff2');
-    font-weight: bold;
+    font-family: 'Sango-JA-SVG';
+    src: url('/fonts/Sango-JA-SVG.ttf') format('truetype');
+    font-weight: normal;
     font-style: normal;
   }
   
   body {
-    font-family: 'ms_sans_serif', sans-serif;
+    font-family: 'Sango-JA-SVG', sans-serif;
     margin: 0;
     padding: 0;
     overflow: hidden;
@@ -44,10 +35,22 @@ const GlobalStyles = createGlobalStyle`
   }
 `;
 
+/**
+ * 主应用组件 - 包含glitch视差和鱼眼变形效果
+ * @returns {JSX.Element} 应用程序根组件
+ */
 function App() {
   return (
     <div className="black-background">
       <div className="fixed-resolution crt-monitor scanlines">
+        {/* 添加glitch干扰条纹层 */}
+        <div className="glitch-lines"></div>
+        
+        {/* 视差背景层 */}
+        <div className="parallax-layer parallax-layer-1"></div>
+        <div className="parallax-layer parallax-layer-2"></div>
+        <div className="parallax-layer parallax-layer-3"></div>
+        
         <ThemeProvider theme={original}>
           <GlobalStyles />
           <Router>
