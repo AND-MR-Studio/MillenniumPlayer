@@ -377,47 +377,84 @@ const Immersive: React.FC = () => {
 
   // 播放歌曲
   const playSong = useCallback(async (song: Song) => {
-    if (!song || !song.id) return;
+    if (!song) return;
     
     try {
       setLoading(true);
       
-      // 获取歌曲播放地址
-      const response = await fetch(`/api/netease/song/url?id=${song.id}`);
-      const data = await response.json();
+      let audioUrl = '';
       
-      if (data.code === 200 && data.data[0]?.url) {
-        const url = data.data[0].url;
-        
-        // 停止当前播放
-        if (playerRef.current) {
-          playerRef.current.stop();
-          playerRef.current.dispose();
-        }
-        
-        // 创建新的播放器
-        const player = new Tone.Player({
-          url,
-          onload: () => {
-            setLoading(false);
-            console.log('歌曲加载完成');
+      // 如果是本地文件，直接使用路径
+      if (song.url && song.url.startsWith('/sounds/')) {
+        audioUrl = song.url;
+      } else if (song.id) {
+        // 尝试获取网易云音乐地址
+        try {
+          const response = await fetch(`/api/netease/song/url?id=${song.id}`);
+          const data = await response.json();
+          
+          if (data.code === 200 && data.data[0]?.url) {
+            audioUrl = data.data[0].url;
+          } else {
+            throw new Error('无法获取歌曲播放地址');
           }
-        });
-        
-        if (filterRef.current) {
-          player.connect(filterRef.current);
+        } catch (apiError) {
+          console.warn('网易云API调用失败，尝试使用本地文件:', apiError);
+          // 如果API失败，尝试使用本地默认文件
+          audioUrl = '/sounds/' + encodeURIComponent('NewBoy.mp3');
         }
-        
-        playerRef.current = player;
-        setCurrentSong(song);
-        setCurrentSongState(song);
-        
-        // 开始播放
-        player.start();
-        setIsPlaying(true);
       } else {
-        throw new Error('无法获取歌曲播放地址');
+        // 默认使用本地文件
+        audioUrl = '/sounds/' + encodeURIComponent('NewBoy.mp3');
       }
+      
+      if (!audioUrl) {
+        throw new Error('无法确定音频文件路径');
+      }
+      
+      // 停止当前播放
+      if (playerRef.current) {
+        try {
+          if (playerRef.current.state === 'started') {
+            playerRef.current.stop();
+          }
+          playerRef.current.dispose();
+        } catch (error) {
+          console.warn('停止播放器时出错:', error);
+        }
+        playerRef.current = null;
+      }
+      
+      // 创建新的播放器
+      const player = new Tone.Player({
+        url: audioUrl,
+        onload: () => {
+          setLoading(false);
+          console.log('歌曲加载完成:', song.name);
+          // 音频加载完成后自动开始播放
+          try {
+            if (player.loaded && player.state === 'stopped') {
+              player.start();
+              setIsPlaying(true);
+            }
+          } catch (error) {
+            console.error('自动播放失败:', error);
+          }
+        },
+        onerror: (error) => {
+          console.error('音频加载失败:', error);
+          setLoading(false);
+        }
+      });
+      
+      if (filterRef.current) {
+        player.connect(filterRef.current);
+      }
+      
+      playerRef.current = player;
+      setCurrentSong(song);
+      setCurrentSongState(song);
+      
     } catch (error) {
       console.error('播放歌曲失败:', error);
       setLoading(false);
@@ -452,12 +489,20 @@ const Immersive: React.FC = () => {
   // 播放控制
   const togglePlayPause = useCallback(() => {
     if (playerRef.current) {
-      if (playback.isPlaying) {
-        playerRef.current.stop();
-        setIsPlaying(false);
-      } else {
-        playerRef.current.start();
-        setIsPlaying(true);
+      try {
+        if (playback.isPlaying) {
+          if (playerRef.current.state === 'started') {
+            playerRef.current.stop();
+          }
+          setIsPlaying(false);
+        } else {
+          if (playerRef.current.loaded && playerRef.current.state === 'stopped') {
+            playerRef.current.start();
+            setIsPlaying(true);
+          }
+        }
+      } catch (error) {
+        console.error('播放控制失败:', error);
       }
     }
   }, [playback.isPlaying, setIsPlaying]);
@@ -490,12 +535,35 @@ const Immersive: React.FC = () => {
     initThreeJS();
     initAudio();
 
+    // 播放进入沉浸模式的音效
+    const playEnterSound = async () => {
+      try {
+        const enterSound = new Audio('/sounds/Windows XP （番茄花园版）关机_爱给网_aigei_com.mp3');
+        enterSound.volume = 0.3; // 设置音量为30%
+        await enterSound.play();
+        console.log('进入沉浸模式音效播放成功');
+      } catch (error) {
+        console.warn('进入沉浸模式音效播放失败:', error);
+      }
+    };
+    
+    // 延迟播放音效，确保页面已完全加载
+    setTimeout(playEnterSound, 300);
+
     // 设置当前页面状态
     setCurrentPage('immersive');
     
-    // 开始播放当前歌曲
+    // 自动开始播放当前歌曲
     if (playback.currentSong) {
-      playSong(playback.currentSong);
+      // 延迟一点时间确保音频系统初始化完成
+      setTimeout(() => {
+        playSong(playback.currentSong!);
+      }, 500);
+    } else if (playback.playlist.length > 0) {
+      // 如果没有当前歌曲，播放第一首
+      setTimeout(() => {
+        playSong(playback.playlist[0]);
+      }, 500);
     }
 
     // 开始动画
@@ -507,8 +575,14 @@ const Immersive: React.FC = () => {
         cancelAnimationFrame(animationIdRef.current);
       }
       if (playerRef.current) {
-        playerRef.current.stop();
-        playerRef.current.dispose();
+        try {
+          if (playerRef.current.state === 'started') {
+            playerRef.current.stop();
+          }
+          playerRef.current.dispose();
+        } catch (error) {
+          console.warn('清理播放器时出错:', error);
+        }
       }
       if (rendererRef.current) {
         rendererRef.current.dispose();

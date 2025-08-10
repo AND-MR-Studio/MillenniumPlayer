@@ -89,7 +89,7 @@ const guestSongs: Song[] = [
     artist: "朴树",
     album: "我去2000年",
     duration: 285, // 4分45秒
-    url: "/sounds/朴树 - New Boy.mp3",
+    url: "/sounds/NewBoy.mp3",
     picUrl: "https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?prompt=retro%20music%20album%20cover%20millennium%20style%20pixel%20art%20new%20boy&image_size=square"
   }
 ];

@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
+import { useNavigate } from 'react-router-dom';
+import { Slider } from 'react95';
 import { useStore } from '../store/useStore';
 import { audioService } from '../services/audioService';
+import TunnelTransition from './TunnelTransition';
 
 // CD播放器主容器
 const CDPlayerContainer = styled.div`
   width: 400px;
-  height: 280px;
+  height: 420px;
   background: #c0c0c0;
   border: 2px outset #c0c0c0;
   position: relative;
@@ -124,6 +127,47 @@ const ProgressArea = styled.div`
   margin: 16px 0;
 `;
 
+// 音效调节区域
+const AudioEffectsArea = styled.div`
+  margin: 12px 0;
+  padding: 8px;
+  background: #f0f0f0;
+  border: 1px inset #c0c0c0;
+`;
+
+const EffectsTitle = styled.div`
+  font-size: 11px;
+  font-weight: bold;
+  margin-bottom: 8px;
+  color: #000080;
+`;
+
+const EffectRow = styled.div`
+  display: flex;
+  align-items: center;
+  margin-bottom: 6px;
+  gap: 8px;
+`;
+
+const EffectLabel = styled.label`
+  font-size: 10px;
+  min-width: 60px;
+  color: #333;
+`;
+
+const SliderContainer = styled.div`
+  flex: 1;
+  display: flex;
+  align-items: center;
+`;
+
+const EffectValue = styled.span`
+  font-size: 10px;
+  min-width: 30px;
+  text-align: right;
+  color: #666;
+`;
+
 const ProgressBar = styled.div`
   width: 100%;
   height: 20px;
@@ -196,16 +240,38 @@ interface CDPlayerProps {
   onClose: () => void;
 }
 
+// 过渡覆盖层
+const TransitionOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 10000;
+`;
+
 /**
  * CD播放器组件 - 模拟经典Win95风格的CD播放器界面
  * @param onClose 关闭播放器的回调函数
  */
 const CDPlayer: React.FC<CDPlayerProps> = ({ onClose }) => {
+  const navigate = useNavigate();
   const { playback, playlists, setCurrentSong, setIsPlaying, togglePlay, setCurrentIndex } = useStore();
   const [selectedArtist, setSelectedArtist] = useState<string>('');
   const [selectedTrack, setSelectedTrack] = useState<string>('');
   const [progress, setProgress] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+  const [showTransition, setShowTransition] = useState(false);
+  
+  // 音效参数状态
+  const [audioEffects, setAudioEffects] = useState({
+    speed: 100,        // 播放速度 (50-150%)
+    lowpass: 100,      // 低通滤波 (0-100%)
+    highpass: 0,       // 高通滤波 (0-100%)
+    noise: 0,          // 白噪音 (0-100%)
+    reverb: 0,         // 混响 (0-100%)
+    spatial: 0         // 3D空间音效 (0-100%)
+  });
 
   // 获取所有艺术家列表
   const artists = Array.from(new Set(playback.playlist.map(song => song.artist)));
@@ -221,6 +287,24 @@ const CDPlayer: React.FC<CDPlayerProps> = ({ onClose }) => {
       setProgress((playback.currentTime / playback.duration) * 100);
     }
   }, [playback.currentTime, playback.duration, isDragging]);
+
+  /**
+   * 处理音效参数变化
+   * @param effectType 音效类型
+   * @param value 新的数值
+   */
+  const handleEffectChange = (effectType: keyof typeof audioEffects, value: number) => {
+    setAudioEffects(prev => ({
+      ...prev,
+      [effectType]: value
+    }));
+    
+    // 应用音效到音频服务
+    audioService.updateAudioEffects({
+      ...audioEffects,
+      [effectType]: value
+    });
+  };
 
   // 初始化当前歌曲的艺术家和曲目选择
   useEffect(() => {
@@ -321,8 +405,32 @@ const CDPlayer: React.FC<CDPlayerProps> = ({ onClose }) => {
     setIsPlaying(false);
   };
 
+  /**
+   * 处理播放按钮点击 - 播放音乐并进入沉浸模式
+   */
+  const handlePlayClick = () => {
+    if (!playback.isPlaying) {
+      // 如果当前没有播放，先播放音乐
+      togglePlay();
+      // 延迟一下确保音乐开始播放，然后显示过渡动画进入沉浸模式
+      setTimeout(() => {
+        setShowTransition(true);
+      }, 500);
+    } else {
+      // 如果正在播放，直接显示过渡动画进入沉浸模式
+      setShowTransition(true);
+    }
+  };
+
+  // 过渡完成后进入沉浸模式
+  const handleTransitionComplete = () => {
+    setShowTransition(false);
+    navigate('/immersive');
+  };
+
   return (
-    <CDPlayerContainer>
+    <>
+      <CDPlayerContainer>
       <TitleBar>
         <TitleIcon src="/CD播放.png" alt="CD Player" />
         CD Player
@@ -375,6 +483,101 @@ const CDPlayer: React.FC<CDPlayerProps> = ({ onClose }) => {
             </ProgressBar>
           </ProgressArea>
           
+          {/* 音效调节区域 */}
+          <AudioEffectsArea>
+            <EffectsTitle>LoFi 音效调节</EffectsTitle>
+            
+            <EffectRow>
+              <EffectLabel>速度:</EffectLabel>
+              <SliderContainer>
+                <Slider
+                  value={audioEffects.speed}
+                  min={50}
+                  max={150}
+                  step={5}
+                  onChange={(value) => handleEffectChange('speed', value)}
+                  style={{ width: '100%' }}
+                />
+              </SliderContainer>
+              <EffectValue>{audioEffects.speed}%</EffectValue>
+            </EffectRow>
+            
+            <EffectRow>
+              <EffectLabel>低通:</EffectLabel>
+              <SliderContainer>
+                <Slider
+                  value={audioEffects.lowpass}
+                  min={0}
+                  max={100}
+                  step={5}
+                  onChange={(value) => handleEffectChange('lowpass', value)}
+                  style={{ width: '100%' }}
+                />
+              </SliderContainer>
+              <EffectValue>{audioEffects.lowpass}%</EffectValue>
+            </EffectRow>
+            
+            <EffectRow>
+              <EffectLabel>高通:</EffectLabel>
+              <SliderContainer>
+                <Slider
+                  value={audioEffects.highpass}
+                  min={0}
+                  max={100}
+                  step={5}
+                  onChange={(value) => handleEffectChange('highpass', value)}
+                  style={{ width: '100%' }}
+                />
+              </SliderContainer>
+              <EffectValue>{audioEffects.highpass}%</EffectValue>
+            </EffectRow>
+            
+            <EffectRow>
+              <EffectLabel>白噪:</EffectLabel>
+              <SliderContainer>
+                <Slider
+                  value={audioEffects.noise}
+                  min={0}
+                  max={100}
+                  step={5}
+                  onChange={(value) => handleEffectChange('noise', value)}
+                  style={{ width: '100%' }}
+                />
+              </SliderContainer>
+              <EffectValue>{audioEffects.noise}%</EffectValue>
+            </EffectRow>
+            
+            <EffectRow>
+              <EffectLabel>混响:</EffectLabel>
+              <SliderContainer>
+                <Slider
+                  value={audioEffects.reverb}
+                  min={0}
+                  max={100}
+                  step={5}
+                  onChange={(value) => handleEffectChange('reverb', value)}
+                  style={{ width: '100%' }}
+                />
+              </SliderContainer>
+              <EffectValue>{audioEffects.reverb}%</EffectValue>
+            </EffectRow>
+            
+            <EffectRow>
+              <EffectLabel>3D音效:</EffectLabel>
+              <SliderContainer>
+                <Slider
+                  value={audioEffects.spatial}
+                  min={0}
+                  max={100}
+                  step={5}
+                  onChange={(value) => handleEffectChange('spatial', value)}
+                  style={{ width: '100%' }}
+                />
+              </SliderContainer>
+              <EffectValue>{audioEffects.spatial}%</EffectValue>
+            </EffectRow>
+          </AudioEffectsArea>
+          
           {/* 播放控制按钮 */}
           <PlayControls>
             <PlayButton 
@@ -384,9 +587,14 @@ const CDPlayer: React.FC<CDPlayerProps> = ({ onClose }) => {
             >
               ⏮
             </PlayButton>
-            <PlayButton onClick={togglePlay} title={playback.isPlaying ? "Pause" : "Play"}>
-              {playback.isPlaying ? '⏸' : '▶'}
+            <PlayButton onClick={handlePlayClick} title={playback.isPlaying ? "进入沉浸模式" : "播放并进入沉浸模式"}>
+              {playback.isPlaying ? '🎵' : '▶'}
             </PlayButton>
+            {playback.isPlaying && (
+              <PlayButton onClick={togglePlay} title="暂停">
+                ⏸
+              </PlayButton>
+            )}
             <PlayButton 
               onClick={handleNext} 
               title="Next"
@@ -404,6 +612,14 @@ const CDPlayer: React.FC<CDPlayerProps> = ({ onClose }) => {
         </ControlPanel>
       </PlayerContent>
     </CDPlayerContainer>
+    
+    {/* 隧道过渡效果 */}
+    {showTransition && (
+      <TransitionOverlay>
+        <TunnelTransition onComplete={handleTransitionComplete} />
+      </TransitionOverlay>
+    )}
+    </>
   );
 };
 

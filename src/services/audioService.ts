@@ -173,6 +173,17 @@ export class AudioService {
           Tone.Destination
         );
     }
+
+    // 控制背景噪音
+    if (this.noise) {
+      if (this.isLofiMode) {
+        this.noise.start();
+      } else {
+        this.noise.stop();
+      }
+    }
+
+    console.log(`Lofi mode ${this.isLofiMode ? 'enabled' : 'disabled'}`);
   }
 
   // 播放音频
@@ -253,18 +264,69 @@ export class AudioService {
       this.player.disconnect();
       this.connectAudioChain();
     }
-
-    // 控制背景噪音
-    if (this.noise) {
-      if (enabled) {
-        this.noise.start();
-      } else {
-        this.noise.stop();
-      }
-    }
-
-    console.log(`Lofi mode ${enabled ? 'enabled' : 'disabled'}`);
   }
+
+  /**
+   * 更新音效参数
+   * @param effects 音效参数对象
+   */
+  updateAudioEffects(effects: {
+    speed: number;
+    lowpass: number;
+    highpass: number;
+    noise: number;
+    reverb: number;
+    spatial: number;
+  }): void {
+    try {
+      // 更新播放速度
+      if (this.player) {
+        this.player.playbackRate = effects.speed / 100;
+      }
+
+      // 更新低通滤波器
+      if (this.lowpass) {
+        const frequency = 20000 * (effects.lowpass / 100);
+        this.lowpass.frequency.value = Math.max(200, frequency);
+      }
+
+      // 更新高通滤波器
+      if (this.highpass) {
+        const frequency = 2000 * (effects.highpass / 100);
+        this.highpass.frequency.value = Math.min(2000, frequency);
+      }
+
+      // 更新混响
+      if (this.reverb) {
+        this.reverb.wet.value = effects.reverb / 100;
+      }
+
+      // 更新白噪音
+      if (this.noise && this.noiseGain) {
+        if (effects.noise > 0) {
+          if (this.noise.state !== 'started') {
+            this.noise.start();
+          }
+          this.noiseGain.gain.value = (effects.noise / 100) * 0.1; // 限制噪音音量
+        } else {
+          if (this.noise.state === 'started') {
+            this.noise.stop();
+          }
+          this.noiseGain.gain.value = 0;
+        }
+      }
+
+      // 3D空间音效可以通过调整立体声宽度实现
+      if (this.chorus) {
+        this.chorus.wet.value = effects.spatial / 100 * 0.5;
+      }
+
+    } catch (error) {
+      console.error('Failed to update audio effects:', error);
+    }
+  }
+
+
 
   // 调整Lofi效果强度
   setLofiIntensity(intensity: number): void {
