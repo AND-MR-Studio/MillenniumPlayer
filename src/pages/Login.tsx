@@ -31,7 +31,7 @@ const LoginContainer = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: 'MS Sans Serif', sans-serif;
+  font-family: 'Sango-JA-SVG', sans-serif;
 `;
 
 const LoginWindow = styled(Window)`
@@ -41,7 +41,7 @@ const LoginWindow = styled(Window)`
 
 const DialStatus = styled.div`
   color: #00ff00;
-  font-family: 'Courier New', monospace;
+  font-family: 'Sango-JA-SVG', monospace;
   font-size: 12px;
   animation: ${dialAnimation} 1.5s infinite;
   margin: 10px 0;
@@ -243,7 +243,7 @@ const Login: React.FC<LoginProps> = () => {
     <LoginContainer>
       <LoginWindow>
         <WindowHeader active={true}>
-          <span>网络连接 - 千禧复古音乐播放器</span>
+          <span>开始连接 - 千禧播放器</span>
         </WindowHeader>
         <WindowContent>
           <Panel variant='well' style={{ padding: '15px' }}>
