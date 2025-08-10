@@ -18,6 +18,7 @@ import styled from 'styled-components';
 import { useStore } from '../store/useStore';
 import { neteaseApi, formatPlaylist, formatSong } from '../services/api';
 import { audioService } from '../services/audioService';
+import CDPlayer from '../components/CDPlayer';
 
 // 桌面容器 - 固定分辨率
 const DesktopContainer = styled.div`
@@ -319,79 +320,11 @@ const Desktop: React.FC = () => {
           </DesktopIcon>
         ))}
 
-        {/* 音乐播放器窗口 */}
+        {/* CD播放器窗口 */}
         {isDesktopMusicPlayerOpen && (
-          <MusicPlayerWindow>
-            <WindowHeader>
-              <span>🎵 NetEase Cloud Music Player</span>
-              <Button
-                size="sm"
-                onClick={() => setDesktopMusicPlayerOpen(false)}
-                style={{ marginLeft: 'auto' }}
-              >
-                ×
-              </Button>
-            </WindowHeader>
-            <WindowContent>
-              <PlayerContent>
-                {/* 用户信息 */}
-                {user && (
-                  <UserInfo>
-                    <UserAvatar src={user.avatarUrl} alt={user.nickname} />
-                    <UserName>{user.nickname}</UserName>
-                  </UserInfo>
-                )}
-                
-                {/* 歌单列表 */}
-                <PlaylistContainer>
-                  <ScrollView style={{ height: '120px' }}>
-                    {isLoadingPlaylists ? (
-                      <div style={{ padding: '8px', textAlign: 'center' }}>加载中...</div>
-                    ) : (
-                      <>
-                        {!selectedPlaylist ? (
-                          playlists.map(playlist => (
-                            <PlaylistItem
-                              key={playlist.id}
-                              onClick={() => loadPlaylistDetail(playlist)}
-                            >
-                              {playlist.name} ({playlist.trackCount}首)
-                            </PlaylistItem>
-                          ))
-                        ) : (
-                          <>
-                            <PlaylistItem onClick={() => setSelectedPlaylist(null)}>
-                              ← 返回歌单列表
-                            </PlaylistItem>
-                            {playlistSongs.map((song, index) => (
-                              <PlaylistItem
-                                key={song.id}
-                                onClick={() => playSong(song, index)}
-                              >
-                                {song.name} - {song.artist}
-                              </PlaylistItem>
-                            ))}
-                          </>
-                        )}
-                      </>
-                    )}
-                  </ScrollView>
-                </PlaylistContainer>
-                
-                {/* 播放控制 */}
-                <PlayerControls>
-                  <Button size="sm" onClick={togglePlay}>
-                    {playback.isPlaying ? '⏸️' : '▶️'}
-                  </Button>
-                  <Button size="sm">⏮️</Button>
-                  <Button size="sm">⏭️</Button>
-                  <Button size="sm" onClick={() => navigate('/immersive')}>
-                    🌟
-                  </Button>
-                </PlayerControls>
-              </PlayerContent>
-            </WindowContent>
-          </MusicPlayerWindow>
+          <div style={{ position: 'absolute', top: '50px', right: '50px', zIndex: 100 }}>
+            <CDPlayer onClose={() => setDesktopMusicPlayerOpen(false)} />
+          </div>
         )}
 
         {/* 任务栏 */}
