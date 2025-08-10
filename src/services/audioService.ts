@@ -14,6 +14,10 @@ export class AudioService {
   private tremolo: Tone.Tremolo | null = null;
   private noise: Tone.Noise | null = null;
   private noiseGain: Tone.Gain | null = null;
+  // 3D空间音效处理器
+  private stereoWidener: Tone.StereoWidener | null = null;
+  private panner3D: Tone.Panner3D | null = null;
+  private spatialGain: Tone.Gain | null = null;
   private isLofiMode: boolean = false;
   private isInitialized: boolean = false;
 
@@ -92,6 +96,22 @@ export class AudioService {
 
       this.noiseGain = new Tone.Gain(0.05);
 
+      // 3D空间音效处理器
+      this.stereoWidener = new Tone.StereoWidener({
+        width: 0 // 初始立体声宽度为0（单声道）
+      });
+
+      this.panner3D = new Tone.Panner3D({
+        positionX: 0,
+        positionY: 0,
+        positionZ: 0,
+        orientationX: 0,
+        orientationY: 0,
+        orientationZ: -1
+      });
+
+      this.spatialGain = new Tone.Gain(1);
+
       // 等待混响加载完成
       await this.reverb.generate();
       
@@ -146,12 +166,12 @@ export class AudioService {
 
   // 连接音频处理链
   private connectAudioChain() {
-    if (!this.player || !this.reverb || !this.lowpass || !this.highpass || !this.compressor || !this.eq) {
+    if (!this.player || !this.reverb || !this.lowpass || !this.highpass || !this.compressor || !this.eq || !this.stereoWidener || !this.panner3D || !this.spatialGain) {
       return;
     }
 
     if (this.isLofiMode) {
-      // Lofi模式：应用所有效果
+      // Lofi模式：应用所有效果，包括3D空间音效
       this.player
         .chain(
           this.highpass,
@@ -163,23 +183,36 @@ export class AudioService {
           this.tremolo,
           this.compressor,
           this.reverb,
+          this.stereoWidener,
+          this.panner3D,
+          this.spatialGain,
           Tone.Destination
         );
     } else {
-      // 普通模式：只应用基础效果
+      // 普通模式：应用基础效果和3D空间音效
       this.player
         .chain(
           this.compressor,
+          this.stereoWidener,
+          this.panner3D,
+          this.spatialGain,
           Tone.Destination
         );
     }
 
     // 控制背景噪音
-    if (this.noise) {
+    if (this.noise && this.noiseGain) {
+      // 将噪音也连接到3D空间处理器
+      this.noise.chain(this.noiseGain, this.spatialGain, Tone.Destination);
+      
       if (this.isLofiMode) {
-        this.noise.start();
+        if (this.noise.state !== 'started') {
+          this.noise.start();
+        }
       } else {
-        this.noise.stop();
+        if (this.noise.state === 'started') {
+          this.noise.stop();
+        }
       }
     }
 
@@ -316,9 +349,28 @@ export class AudioService {
         }
       }
 
-      // 3D空间音效可以通过调整立体声宽度实现
+      // 3D空间音效：立体声宽度和空间定位
+      if (this.stereoWidener) {
+        // 立体声宽度：0-100% 映射到 0-1
+        this.stereoWidener.width.value = effects.spatial / 100;
+      }
+
+      if (this.panner3D && this.spatialGain) {
+        // 3D定位：根据空间音效强度调整位置和增益
+        const spatialIntensity = effects.spatial / 100;
+        
+        // 固定的3D位置，避免动态变化导致的不稳定
+        this.panner3D.positionX.value = spatialIntensity * 1.5;
+        this.panner3D.positionY.value = spatialIntensity * 1.0;
+        this.panner3D.positionZ.value = spatialIntensity * -2; // 向后移动增加深度感
+        
+        // 调整空间增益
+        this.spatialGain.gain.value = 1 + (spatialIntensity * 0.2);
+      }
+
+      // 保持原有的合唱效果作为额外的空间感
       if (this.chorus) {
-        this.chorus.wet.value = effects.spatial / 100 * 0.5;
+        this.chorus.wet.value = effects.spatial / 100 * 0.4;
       }
 
     } catch (error) {
@@ -408,6 +460,18 @@ export class AudioService {
     if (this.noiseGain) {
       this.noiseGain.dispose();
       this.noiseGain = null;
+    }
+    if (this.stereoWidener) {
+      this.stereoWidener.dispose();
+      this.stereoWidener = null;
+    }
+    if (this.panner3D) {
+      this.panner3D.dispose();
+      this.panner3D = null;
+    }
+    if (this.spatialGain) {
+      this.spatialGain.dispose();
+      this.spatialGain = null;
     }
   }
 }

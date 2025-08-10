@@ -133,6 +133,9 @@ const AudioEffectsArea = styled.div`
   padding: 8px;
   background: #f0f0f0;
   border: 1px inset #c0c0c0;
+  max-height: 180px;
+  overflow-y: auto;
+  overflow-x: hidden;
 `;
 
 const EffectsTitle = styled.div`
@@ -146,26 +149,34 @@ const EffectRow = styled.div`
   display: flex;
   align-items: center;
   margin-bottom: 6px;
-  gap: 8px;
+  gap: 6px;
+  width: 100%;
+  box-sizing: border-box;
 `;
 
 const EffectLabel = styled.label`
   font-size: 10px;
-  min-width: 60px;
+  min-width: 50px;
+  max-width: 50px;
   color: #333;
+  flex-shrink: 0;
 `;
 
 const SliderContainer = styled.div`
   flex: 1;
   display: flex;
   align-items: center;
+  max-width: 120px;
+  overflow: hidden;
 `;
 
 const EffectValue = styled.span`
   font-size: 10px;
-  min-width: 30px;
+  min-width: 35px;
+  max-width: 35px;
   text-align: right;
   color: #666;
+  flex-shrink: 0;
 `;
 
 const ProgressBar = styled.div`
@@ -263,15 +274,18 @@ const CDPlayer: React.FC<CDPlayerProps> = ({ onClose }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [showTransition, setShowTransition] = useState(false);
   
-  // 音效参数状态
-  const [audioEffects, setAudioEffects] = useState({
+  // 默认音效参数
+  const defaultAudioEffects = {
     speed: 100,        // 播放速度 (50-150%)
     lowpass: 100,      // 低通滤波 (0-100%)
     highpass: 0,       // 高通滤波 (0-100%)
     noise: 0,          // 白噪音 (0-100%)
     reverb: 0,         // 混响 (0-100%)
     spatial: 0         // 3D空间音效 (0-100%)
-  });
+  };
+
+  // 音效参数状态
+  const [audioEffects, setAudioEffects] = useState(defaultAudioEffects);
 
   // 获取所有艺术家列表
   const artists = Array.from(new Set(playback.playlist.map(song => song.artist)));
@@ -287,6 +301,12 @@ const CDPlayer: React.FC<CDPlayerProps> = ({ onClose }) => {
       setProgress((playback.currentTime / playback.duration) * 100);
     }
   }, [playback.currentTime, playback.duration, isDragging]);
+
+  // 初始化音效设置
+  useEffect(() => {
+    // 在组件加载时应用默认音效设置
+    audioService.updateAudioEffects(audioEffects);
+  }, []);
 
   /**
    * 处理音效参数变化
@@ -304,6 +324,14 @@ const CDPlayer: React.FC<CDPlayerProps> = ({ onClose }) => {
       ...audioEffects,
       [effectType]: value
     });
+  };
+
+  /**
+   * 重置音效参数为默认值
+   */
+  const resetAudioEffects = () => {
+    setAudioEffects(defaultAudioEffects);
+    audioService.updateAudioEffects(defaultAudioEffects);
   };
 
   // 初始化当前歌曲的艺术家和曲目选择
@@ -336,7 +364,10 @@ const CDPlayer: React.FC<CDPlayerProps> = ({ onClose }) => {
       
       if (song.url) {
         audioService.loadAudio(song.url).then(() => {
-          console.log('音频加载成功，开始播放');
+          console.log('音频加载成功，应用音效设置');
+          // 应用当前音效设置
+          audioService.updateAudioEffects(audioEffects);
+          console.log('开始播放');
           audioService.play();
           setIsPlaying(true);
         }).catch(error => {
@@ -372,6 +403,8 @@ const CDPlayer: React.FC<CDPlayerProps> = ({ onClose }) => {
       
       if (prevSong.url) {
         audioService.loadAudio(prevSong.url).then(() => {
+          // 应用当前音效设置
+          audioService.updateAudioEffects(audioEffects);
           audioService.play();
           setIsPlaying(true);
         }).catch(error => {
@@ -391,6 +424,8 @@ const CDPlayer: React.FC<CDPlayerProps> = ({ onClose }) => {
       
       if (nextSong.url) {
         audioService.loadAudio(nextSong.url).then(() => {
+          // 应用当前音效设置
+          audioService.updateAudioEffects(audioEffects);
           audioService.play();
           setIsPlaying(true);
         }).catch(error => {
@@ -575,6 +610,17 @@ const CDPlayer: React.FC<CDPlayerProps> = ({ onClose }) => {
                 />
               </SliderContainer>
               <EffectValue>{audioEffects.spatial}%</EffectValue>
+            </EffectRow>
+            
+            {/* 重置按钮 */}
+            <EffectRow style={{ marginTop: '8px', justifyContent: 'center' }}>
+              <PlayButton 
+                onClick={resetAudioEffects}
+                title="重置所有音效为默认值"
+                style={{ width: '80px', fontSize: '10px' }}
+              >
+                重置音效
+              </PlayButton>
             </EffectRow>
           </AudioEffectsArea>
           

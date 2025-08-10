@@ -523,19 +523,8 @@ const Immersive: React.FC = () => {
     }
   }, [playback, playPrevious, playSong]);
 
-  // 组件初始化
+  // 播放进入沉浸模式音效 - 只在组件首次挂载时执行
   useEffect(() => {
-    // 检查播放状态
-    if (!playback.playlist || playback.playlist.length === 0) {
-      navigate('/desktop');
-      return;
-    }
-
-    // 初始化Three.js和音频
-    initThreeJS();
-    initAudio();
-
-    // 播放进入沉浸模式的音效
     const playEnterSound = async () => {
       try {
         const enterSound = new Audio('/sounds/Windows XP （番茄花园版）关机_爱给网_aigei_com.mp3');
@@ -549,6 +538,19 @@ const Immersive: React.FC = () => {
     
     // 延迟播放音效，确保页面已完全加载
     setTimeout(playEnterSound, 300);
+  }, []); // 空依赖数组，确保只在组件挂载时执行一次
+
+  // 组件初始化
+  useEffect(() => {
+    // 检查播放状态
+    if (!playback.playlist || playback.playlist.length === 0) {
+      navigate('/desktop');
+      return;
+    }
+
+    // 初始化Three.js和音频
+    initThreeJS();
+    initAudio();
 
     // 设置当前页面状态
     setCurrentPage('immersive');
