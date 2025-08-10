@@ -15,7 +15,51 @@ import {
 import styled, { keyframes } from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
-import { neteaseApi, formatUser } from '../services/api';
+import { neteaseApi, formatUser, CookieManager } from '../services/api';
+
+// 检查登录状态
+const checkLoginStatus = async () => {
+  try {
+    const response = await neteaseApi.checkLoginStatus();
+    return response.data?.profile || null;
+  } catch (error) {
+    console.error('检查登录状态失败:', error);
+    return null;
+  }
+};
+
+// 保存登录cookie
+const saveLoginCookie = (userInfo: any) => {
+  try {
+    localStorage.setItem('netease_user', JSON.stringify(userInfo));
+    localStorage.setItem('netease_login_time', Date.now().toString());
+  } catch (error) {
+    console.error('保存登录信息失败:', error);
+  }
+};
+
+// 获取保存的登录信息
+const getSavedLoginInfo = () => {
+  try {
+    const userStr = localStorage.getItem('netease_user');
+    const loginTime = localStorage.getItem('netease_login_time');
+    
+    if (userStr && loginTime) {
+      const user = JSON.parse(userStr);
+      const time = parseInt(loginTime);
+      const now = Date.now();
+      
+      // 检查是否在7天内
+      if (now - time < 7 * 24 * 60 * 60 * 1000) {
+        return user;
+      }
+    }
+    return null;
+  } catch (error) {
+    console.error('获取保存的登录信息失败:', error);
+    return null;
+  }
+};
 
 // 拨号连接动画
 const dialAnimation = keyframes`
@@ -65,6 +109,28 @@ const StatusText = styled.div`
   margin: 5px 0;
 `;
 
+const ErrorText = styled.div`
+  font-size: 11px;
+  color: #ff0000;
+  margin: 10px 0;
+  padding: 8px;
+  background: #ffe0e0;
+  border: 1px solid #ff9999;
+  border-radius: 2px;
+  line-height: 1.4;
+`;
+
+const WarningText = styled.div`
+  font-size: 11px;
+  color: #cc6600;
+  margin: 10px 0;
+  padding: 8px;
+  background: #fff8e0;
+  border: 1px solid #ffcc99;
+  border-radius: 2px;
+  line-height: 1.4;
+`;
+
 
 
 const GuestInfo = styled.div`
@@ -88,9 +154,52 @@ const Login: React.FC<LoginProps> = () => {
   const [progress, setProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState('准备连接到网易云音乐服务器...');
   const [error, setError] = useState('');
+  const [errorType, setErrorType] = useState<'normal' | 'security' | 'network'>('normal');
   const [isSendingCaptcha, setIsSendingCaptcha] = useState(false);
   const [captchaSent, setCaptchaSent] = useState(false);
   const [countdown, setCountdown] = useState(0);
+  const [isCheckingLogin, setIsCheckingLogin] = useState(true);
+  const [retryCount, setRetryCount] = useState(0);
+  
+  // 检查登录状态
+  useEffect(() => {
+    const checkExistingLogin = async () => {
+      setIsCheckingLogin(true);
+      setStatusMessage('检查登录状态...');
+      
+      try {
+        // 首先检查本地保存的登录信息
+        const savedUser = getSavedLoginInfo();
+        if (savedUser) {
+          // 验证服务器端登录状态
+          const serverUser = await checkLoginStatus();
+          if (serverUser) {
+            const user = formatUser(serverUser);
+            setUser(user);
+            setCurrentPage('desktop');
+            setStatusMessage('已登录，正在进入桌面...');
+            setTimeout(() => {
+              navigate('/desktop');
+            }, 1000);
+            return;
+          } else {
+            // 服务器端登录已过期，清除本地信息
+            localStorage.removeItem('netease_user');
+            localStorage.removeItem('netease_login_time');
+          }
+        }
+        
+        setStatusMessage('准备连接到网易云音乐服务器...');
+      } catch (error) {
+        console.error('检查登录状态失败:', error);
+        setStatusMessage('准备连接到网易云音乐服务器...');
+      } finally {
+        setIsCheckingLogin(false);
+      }
+    };
+    
+    checkExistingLogin();
+  }, [navigate, setUser, setCurrentPage]);
   
 
 
@@ -123,20 +232,42 @@ const Login: React.FC<LoginProps> = () => {
 
 
 
+  // 处理错误信息
+  const handleError = (error: any, context: string) => {
+    console.error(`${context}错误:`, error);
+    
+    let errorMessage = error.message || '网络连接失败';
+    let type: 'normal' | 'security' | 'network' = 'normal';
+    
+    // 检查是否为8810安全风险错误
+    if (errorMessage.includes('当前网络环境存在安全风险')) {
+      type = 'security';
+      errorMessage = '网络安全检测失败\n\n可能的解决方案：\n• 稍后重试（推荐）\n• 更换网络环境\n• 使用移动网络\n• 关闭VPN或代理';
+    } else if (errorMessage.includes('网络') || errorMessage.includes('连接') || errorMessage.includes('超时')) {
+      type = 'network';
+    }
+    
+    setError(errorMessage);
+    setErrorType(type);
+  };
+
   // 发送验证码
   const sendCaptcha = async () => {
     if (!phone) {
       setError('请输入手机号');
+      setErrorType('normal');
       return;
     }
 
     if (!/^1[3-9]\d{9}$/.test(phone)) {
       setError('请输入正确的手机号格式');
+      setErrorType('normal');
       return;
     }
 
     setIsSendingCaptcha(true);
     setError('');
+    setErrorType('normal');
 
     try {
       const response = await neteaseApi.sendCaptcha(phone);
@@ -144,12 +275,12 @@ const Login: React.FC<LoginProps> = () => {
         setCaptchaSent(true);
         setCountdown(60);
         setStatusMessage('验证码已发送，请查收短信');
+        setRetryCount(0); // 重置重试计数
       } else {
         throw new Error('发送验证码失败');
       }
     } catch (error: any) {
-      console.error('发送验证码错误:', error);
-      setError(error.message || '发送验证码失败');
+      handleError(error, '发送验证码');
     } finally {
       setIsSendingCaptcha(false);
     }
@@ -159,20 +290,24 @@ const Login: React.FC<LoginProps> = () => {
   const handleCaptchaLogin = async () => {
     if (!phone) {
       setError('请输入手机号');
+      setErrorType('normal');
       return;
     }
 
     if (!captcha) {
       setError('请输入验证码');
+      setErrorType('normal');
       return;
     }
 
     if (!/^1[3-9]\d{9}$/.test(phone)) {
       setError('请输入正确的手机号格式');
+      setErrorType('normal');
       return;
     }
 
     setError('');
+    setErrorType('normal');
     setIsConnecting(true);
     setProgress(0);
 
@@ -183,11 +318,16 @@ const Login: React.FC<LoginProps> = () => {
       if (response.code === 200 && response.profile) {
         const user = formatUser(response.profile);
         user.phone = phone;
+        
+        // 保存登录信息
+        saveLoginCookie(user);
+        
         setUser(user);
         setCurrentPage('desktop');
         
         setStatusMessage('连接成功！正在进入桌面...');
         setProgress(100);
+        setRetryCount(0); // 重置重试计数
         
         setTimeout(() => {
           navigate('/desktop');
@@ -196,11 +336,21 @@ const Login: React.FC<LoginProps> = () => {
         throw new Error('登录失败');
       }
     } catch (error: any) {
-      console.error('登录错误:', error);
-      setError(error.message || '网络连接失败');
+      handleError(error, '登录');
       setIsConnecting(false);
       setProgress(0);
       setStatusMessage('连接失败，请重试');
+      setRetryCount(prev => prev + 1);
+    }
+  };
+
+  // 重试登录
+  const handleRetry = () => {
+    setError('');
+    setErrorType('normal');
+    if (errorType === 'security') {
+      // 对于安全风险错误，清除cookie重新开始
+      CookieManager.clearCookie();
     }
   };
 
@@ -249,7 +399,15 @@ const Login: React.FC<LoginProps> = () => {
           <Panel variant='well' style={{ padding: '15px' }}>
             <h3 style={{ margin: '0 0 15px 0', fontSize: '14px' }}>拨号网络连接</h3>
             
-            {!isConnecting ? (
+            {isCheckingLogin ? (
+              <>
+                <DialStatus>{statusMessage}</DialStatus>
+                <ProgressBar value={50} />
+                <StatusText>
+                  正在检查登录状态...
+                </StatusText>
+              </>
+            ) : !isConnecting ? (
               <>
                 <Tabs value={activeTab} onChange={setActiveTab}>
                   <Tab value={0}>验证码登录</Tab>
@@ -300,7 +458,7 @@ const Login: React.FC<LoginProps> = () => {
                       <div style={{ textAlign: 'center', marginTop: '15px' }}>
                         <Button
                           onClick={handleCaptchaLogin}
-                          disabled={isConnecting}
+                          disabled={isConnecting || isCheckingLogin}
                           style={{ minWidth: '100px', width: '100%' }}
                         >
                           连接
@@ -322,7 +480,7 @@ const Login: React.FC<LoginProps> = () => {
                       <div style={{ textAlign: 'center', marginTop: '15px' }}>
                         <Button
                           onClick={handleGuestLogin}
-                          disabled={isConnecting}
+                          disabled={isConnecting || isCheckingLogin}
                           style={{ minWidth: '100px', width: '100%' }}
                         >
                           进入游客模式
@@ -333,9 +491,48 @@ const Login: React.FC<LoginProps> = () => {
                 </TabBody>
                 
                 {error && (
-                  <StatusText style={{ color: '#ff0000', marginTop: '10px' }}>
-                    错误: {error}
-                  </StatusText>
+                  <>
+                    {errorType === 'security' ? (
+                      <ErrorText>
+                        <strong>⚠️ 安全检测失败</strong><br/>
+                        {error.split('\n').map((line, index) => (
+                          <span key={index}>
+                            {line}
+                            {index < error.split('\n').length - 1 && <br/>}
+                          </span>
+                        ))}
+                        {retryCount > 0 && (
+                          <>
+                            <br/><br/>
+                            <small>已重试 {retryCount} 次</small>
+                          </>
+                        )}
+                      </ErrorText>
+                    ) : errorType === 'network' ? (
+                      <WarningText>
+                        <strong>🌐 网络连接问题</strong><br/>
+                        {error}
+                        <br/><br/>
+                        <small>建议检查网络连接后重试</small>
+                      </WarningText>
+                    ) : (
+                      <StatusText style={{ color: '#ff0000', marginTop: '10px' }}>
+                        错误: {error}
+                      </StatusText>
+                    )}
+                    
+                    {(errorType === 'security' || errorType === 'network') && (
+                      <div style={{ textAlign: 'center', marginTop: '10px' }}>
+                        <Button
+                          onClick={handleRetry}
+                          disabled={isConnecting}
+                          style={{ minWidth: '80px' }}
+                        >
+                          重试
+                        </Button>
+                      </div>
+                    )}
+                  </>
                 )}
               </>
             ) : (

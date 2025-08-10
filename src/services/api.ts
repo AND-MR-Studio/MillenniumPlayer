@@ -1,16 +1,56 @@
 import axios from 'axios';
 import { User, Playlist, Song } from '../store/useStore';
 
+// Cookie管理
+class CookieManager {
+  private static COOKIE_KEY = 'netease_cookie';
+  
+  static getCookie(): string | null {
+    return localStorage.getItem(this.COOKIE_KEY);
+  }
+  
+  static setCookie(cookie: string): void {
+    localStorage.setItem(this.COOKIE_KEY, cookie);
+  }
+  
+  static clearCookie(): void {
+    localStorage.removeItem(this.COOKIE_KEY);
+  }
+}
+
+// 错误处理类
+class ApiErrorHandler {
+  static handle8810Error(): string {
+    return '当前网络环境存在安全风险，建议：\n1. 稍后重试\n2. 更换网络环境\n3. 使用移动网络';
+  }
+  
+  static getErrorMessage(error: any): string {
+    if (error.response?.data?.code === 8810) {
+      return this.handle8810Error();
+    }
+    
+    if (error.response?.data?.message) {
+      return error.response.data.message;
+    }
+    
+    return error.message || '网络请求失败';
+  }
+}
+
 // 创建axios实例
 const api = axios.create({
   baseURL: '/api',
-  timeout: 10000,
+  timeout: 15000,
 });
 
 // 请求拦截器
 api.interceptors.request.use(
   (config) => {
-    // 可以在这里添加认证token等
+    // 自动添加cookie到请求中
+    const cookie = CookieManager.getCookie();
+    if (cookie && config.data && typeof config.data === 'object') {
+      config.data.cookie = cookie;
+    }
     return config;
   },
   (error) => {
@@ -21,13 +61,51 @@ api.interceptors.request.use(
 // 响应拦截器
 api.interceptors.response.use(
   (response) => {
+    // 自动保存返回的cookie
+    if (response.data?.cookie) {
+      CookieManager.setCookie(response.data.cookie);
+    }
     return response;
   },
   (error) => {
     console.error('API Error:', error);
+    
+    // 特殊处理8810错误
+    if (error.response?.data?.code === 8810) {
+      console.warn('检测到网络安全风险错误8810');
+    }
+    
     return Promise.reject(error);
   }
 );
+
+// 重试机制
+const retryRequest = async <T>(requestFn: () => Promise<T>, maxRetries: number = 2): Promise<T> => {
+  let lastError;
+  
+  for (let i = 0; i <= maxRetries; i++) {
+    try {
+      return await requestFn();
+    } catch (error: any) {
+      lastError = error;
+      
+      // 如果是8810错误，不进行重试
+      if (error.response?.data?.code === 8810) {
+        throw error;
+      }
+      
+      // 最后一次重试失败，抛出错误
+      if (i === maxRetries) {
+        throw error;
+      }
+      
+      // 等待一段时间后重试
+      await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+    }
+  }
+  
+  throw lastError;
+};
 
 // 网易云音乐API接口
 export const neteaseApi = {
@@ -46,27 +124,37 @@ export const neteaseApi = {
 
   // 发送验证码
   sendCaptcha: async (phone: string): Promise<{ code: number }> => {
-    try {
-      const response = await api.post('/netease/captcha/sent', {
-        phone
-      });
-      return response.data;
-    } catch (error) {
-      throw new Error('发送验证码失败');
-    }
+    return retryRequest(async () => {
+      try {
+        const response = await api.post('/netease/captcha/sent', {
+          phone
+        });
+        return response.data;
+      } catch (error: any) {
+        throw new Error(ApiErrorHandler.getErrorMessage(error));
+      }
+    });
   },
 
   // 验证码登录
   loginByCaptcha: async (phone: string, captcha: string): Promise<{ code: number; profile?: User; cookie?: string }> => {
-    try {
-      const response = await api.post('/netease/login/cellphone', {
-        phone,
-        captcha
-      });
-      return response.data;
-    } catch (error) {
-      throw new Error('验证码登录失败，请检查验证码');
-    }
+    return retryRequest(async () => {
+      try {
+        const response = await api.post('/netease/login/cellphone', {
+          phone,
+          captcha
+        });
+        
+        // 保存登录cookie
+        if (response.data.cookie) {
+          CookieManager.setCookie(response.data.cookie);
+        }
+        
+        return response.data;
+      } catch (error: any) {
+        throw new Error(ApiErrorHandler.getErrorMessage(error));
+      }
+    });
   },
 
   // 获取用户歌单
@@ -119,6 +207,41 @@ export const neteaseApi = {
     }
   },
 
+  // 检查登录状态
+  checkLoginStatus: async (cookie?: string): Promise<{ code: number; data?: any }> => {
+    try {
+      const cookieToUse = cookie || CookieManager.getCookie();
+      const response = await api.post('/netease/login/status', {
+        cookie: cookieToUse
+      });
+      return response.data;
+    } catch (error: any) {
+      throw new Error(ApiErrorHandler.getErrorMessage(error));
+    }
+  },
+
+  // 刷新登录状态
+  refreshLogin: async (cookie?: string): Promise<{ code: number; cookie?: string }> => {
+    try {
+      const cookieToUse = cookie || CookieManager.getCookie();
+      if (!cookieToUse) {
+        throw new Error('没有可用的登录信息');
+      }
+      
+      const response = await api.post('/netease/login/refresh', {
+        cookie: cookieToUse
+      });
+      
+      // 更新cookie
+      if (response.data.cookie) {
+        CookieManager.setCookie(response.data.cookie);
+      }
+      
+      return response.data;
+    } catch (error: any) {
+      throw new Error(ApiErrorHandler.getErrorMessage(error));
+    }
+  },
 
 };
 
@@ -161,5 +284,8 @@ export const formatUser = (profile: any): User => {
     phone: profile.phone || '',
   };
 };
+
+// 导出Cookie管理器
+export { CookieManager };
 
 export default api;
