@@ -23,7 +23,7 @@ import { audioService } from '../services/audioService';
 const DesktopContainer = styled.div`
   width: 100%;
   height: 100%;
-  background: #008080;
+  background: #004040;
   position: relative;
   overflow: hidden;
   font-family: 'Sango-JA-SVG', sans-serif;
@@ -33,7 +33,7 @@ const DesktopContainer = styled.div`
 const DesktopBackground = styled.div`
   width: 100%;
   height: 100%;
-  background: linear-gradient(45deg, #008080, #20b2aa);
+  background: linear-gradient(45deg, #003030 0%, #004040 100%);
   position: relative;
 `;
 
@@ -49,6 +49,7 @@ const Taskbar = styled(Panel)`
   padding: 4px 8px;
   background: #c0c0c0;
   border-top: 2px outset #c0c0c0;
+  box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.2);
 `;
 
 // 开始按钮
@@ -57,6 +58,13 @@ const StartButton = styled(Button)`
   padding: 0 16px;
   font-weight: bold;
   margin-right: 8px;
+  font-size: 14px;
+  background: #c0c0c0;
+  border: 2px outset #c0c0c0;
+  
+  &:active {
+    border: 2px inset #c0c0c0;
+  }
 `;
 
 // 时钟显示
@@ -64,49 +72,45 @@ const Clock = styled.div`
   margin-left: auto;
   padding: 4px 8px;
   border: 1px inset #c0c0c0;
-  font-size: 11px;
+  font-size: 12px;
   background: #c0c0c0;
+  min-width: 60px;
+  text-align: center;
 `;
 
 // 桌面图标
-const DesktopIcon = styled.div`
+const DesktopIcon = styled.div<{ selected?: boolean }>`
   position: absolute;
-  width: 64px;
-  height: 80px;
+  width: 80px;
+  height: 100px;
   display: flex;
   flex-direction: column;
   align-items: center;
   cursor: pointer;
-  padding: 4px;
-  
-  &:hover {
-    background: rgba(255, 255, 255, 0.1);
-  }
-  
-  &:active {
-    background: rgba(255, 255, 255, 0.2);
-  }
+  padding: 6px;
+  border-radius: 2px;
 `;
 
-const IconImage = styled.div`
-  width: 32px;
-  height: 32px;
-  background: #c0c0c0;
-  border: 2px outset #c0c0c0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
-  margin-bottom: 4px;
+const IconImage = styled.img`
+  width: 48px;
+  height: 48px;
+  margin-bottom: 6px;
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
 `;
 
-const IconLabel = styled.div`
-  font-size: 10px;
-  color: white;
+const IconLabel = styled.div<{ selected?: boolean }>`
+  font-size: 12px;
+  color: ${props => props.selected ? '#0000ff' : '#ffffff'};
   text-align: center;
-  text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.5);
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
   word-wrap: break-word;
   line-height: 1.2;
+  font-weight: ${props => props.selected ? 'bold' : 'normal'};
+  background: ${props => props.selected ? '#ffffff' : 'transparent'};
+  padding: ${props => props.selected ? '2px 4px' : '0'};
+  border-radius: 2px;
 `;
 
 // 音乐播放器窗口
@@ -200,6 +204,7 @@ const Desktop: React.FC = () => {
   const [isLoadingPlaylists, setIsLoadingPlaylists] = useState(false);
   const [selectedPlaylist, setSelectedPlaylist] = useState<any>(null);
   const [playlistSongs, setPlaylistSongs] = useState<any[]>([]);
+  const [selectedIcon, setSelectedIcon] = useState<string | null>(null);
 
   // 检查登录状态
   useEffect(() => {
@@ -283,13 +288,13 @@ const Desktop: React.FC = () => {
 
   // 桌面图标配置
   const desktopIcons = [
-    { id: 'mycomputer', icon: '💻', label: '我的电脑', x: 20, y: 20, action: () => {} },
-    { id: 'network', icon: '🌐', label: '网上邻居', x: 20, y: 120, action: () => {} },
-    { id: 'music', icon: '🎵', label: '音乐播放器', x: 20, y: 220, action: () => setDesktopMusicPlayerOpen(true) },
-    { id: 'immersive', icon: '🌟', label: '沉浸模式', x: 20, y: 320, action: () => navigate('/immersive') },
-    { id: 'recycle', icon: '🗑️', label: '回收站', x: 20, y: 420, action: () => {} },
-    { id: 'settings', icon: '⚙️', label: '设置', x: 120, y: 20, action: () => {} },
-    { id: 'logout', icon: '🚪', label: '注销', x: 120, y: 120, action: logout }
+    { id: 'mycomputer', icon: '/我的电脑.png', label: '我的电脑', x: 20, y: 20, action: () => {} },
+    { id: 'network', icon: '/W95-1  (60).png', label: '网上邻居', x: 20, y: 120, action: () => {} },
+    { id: 'music', icon: '/CD播放.png', label: '音乐播放器', x: 20, y: 220, action: () => setDesktopMusicPlayerOpen(true) },
+    { id: 'immersive', icon: '/W95-1  (92).png', label: '沉浸模式', x: 20, y: 320, action: () => navigate('/immersive') },
+    { id: 'recycle', icon: '/回收站.png', label: '回收站', x: 20, y: 420, action: () => {} },
+    { id: 'settings', icon: '/W95-1  (60).png', label: '设置', x: 120, y: 20, action: () => {} },
+    { id: 'logout', icon: '/W95-1  (92).png', label: '注销', x: 120, y: 120, action: logout }
   ];
 
   return (
@@ -300,10 +305,17 @@ const Desktop: React.FC = () => {
           <DesktopIcon
             key={icon.id}
             style={{ left: icon.x, top: icon.y }}
-            onClick={icon.action}
+            selected={selectedIcon === icon.id}
+            onClick={() => {
+              setSelectedIcon(icon.id);
+              setTimeout(() => {
+                icon.action();
+                setSelectedIcon(null);
+              }, 200);
+            }}
           >
-            <IconImage>{icon.icon}</IconImage>
-            <IconLabel>{icon.label}</IconLabel>
+            <IconImage src={icon.icon} alt={icon.label} />
+            <IconLabel selected={selectedIcon === icon.id}>{icon.label}</IconLabel>
           </DesktopIcon>
         ))}
 

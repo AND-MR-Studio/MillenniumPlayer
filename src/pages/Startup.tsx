@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled, { keyframes } from 'styled-components';
 
@@ -173,6 +173,7 @@ const Startup: React.FC = () => {
   const [progress, setProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState(0);
   const [showCursor, setShowCursor] = useState(true);
+  const startupAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const loadingSteps = [
     '正在初始化千禧复古音乐系统...',
@@ -182,6 +183,35 @@ const Startup: React.FC = () => {
     '配置沉浸式播放环境...',
     '系统准备完成！'
   ];
+
+  // 播放开机音效
+  useEffect(() => {
+    const playStartupSound = async () => {
+      try {
+        // 创建音频元素
+        const audio = new Audio('/sounds/windows开机正_爱给网_aigei_com.mp3');
+        startupAudioRef.current = audio;
+        
+        // 设置音量
+        audio.volume = 0.6;
+        
+        // 播放音效
+        await audio.play();
+      } catch (error) {
+        console.log('开机音效播放失败:', error);
+      }
+    };
+    
+    playStartupSound();
+    
+    // 清理函数
+    return () => {
+      if (startupAudioRef.current) {
+        startupAudioRef.current.pause();
+        startupAudioRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -198,6 +228,10 @@ const Startup: React.FC = () => {
         if (newProgress >= 100) {
           clearInterval(timer);
           setTimeout(() => {
+            // 停止开机音效
+            if (startupAudioRef.current) {
+              startupAudioRef.current.pause();
+            }
             navigate('/login');
           }, 2000);
           return 100;

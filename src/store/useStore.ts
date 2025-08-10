@@ -85,12 +85,12 @@ interface AppState {
 const guestSongs: Song[] = [
   {
     id: 1,
-    name: "千禧复古音乐",
-    artist: "演示艺术家",
-    album: "复古专辑",
-    duration: 240,
-    url: "https://m10.music.126.net/20250809232727/be70ce2573695539f95e5fa74e5564cc/ymusic/c48c/fb99/1950/a0634034446f904929e37dc2686ba91b.mp3?vuutv=dK9CJuc9xUQc/KnNp1lWeq2E85IwGe8ovhQAZfo2ezTQCuaSojshTT+wHzE9KGXXWqk3T+KX5DQEqsykuMzJ9AG8f+w+KQCCCmndJq7bXkyK0smEh4mEFxwwbkKuh9fIRmB7R2D077/KT2U5q0qfHXWmyo348Q5IULbJdwAWVw5XkeUHkar06th8gmhy96kx37TmpiYroyvSkqgsRSFi9gAQ/6B8kf547cPbiHYf5ll7Iulgas620P+FE/tBamT7ronUW5AleYKm9zhnLh4yBsWnKzmJR8GfKzHrp0fQ1B6lBI5sjF6Y2Vlte4o1bUo8rWFAgfzByXmhbviO7h7KfOgKtCtnUEGtOV1MtOWgnA8rwICTULyOFONoku/I94N+",
-    picUrl: "https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?prompt=retro%20music%20album%20cover%20millennium%20style%20pixel%20art&image_size=square"
+    name: "New Boy",
+    artist: "朴树",
+    album: "我去2000年",
+    duration: 285, // 4分45秒
+    url: "/sounds/朴树 - New Boy.mp3",
+    picUrl: "https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?prompt=retro%20music%20album%20cover%20millennium%20style%20pixel%20art%20new%20boy&image_size=square"
   }
 ];
 
@@ -98,12 +98,12 @@ const guestSongs: Song[] = [
 const guestPlaylists: Playlist[] = [
   {
     id: 1,
-    name: "游客演示歌单",
-    coverImgUrl: "https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?prompt=retro%20music%20playlist%20cover%20millennium%20style&image_size=square",
+    name: "千禧年经典歌单",
+    coverImgUrl: "https://trae-api-sg.mchost.guru/api/ide/v1/text_to_image?prompt=retro%20music%20playlist%20cover%20millennium%20style%20year%202000&image_size=square",
     trackCount: 1,
-    description: "游客模式演示歌单"
-  }
-];
+    description: "千禧年代表性音乐作品"
+   }
+ ];
 
 // 初始播放状态
 const initialPlaybackState: PlaybackState = {
