@@ -1,5 +1,21 @@
 import * as Tone from 'tone';
 
+// 音频效果参数接口
+export interface AudioEffects {
+  speed: number;        // 播放速度 (25-200, 对应0.25-2.0)
+  lowpass: number;      // 低通滤波 (1000-20000 Hz)
+  highpass: number;     // 高通滤波 (20-500 Hz)
+  noise: number;        // 白噪音强度 (0-100)
+  reverb: number;       // 混响强度 (0-100)
+  spatial: number;      // 3D空间音效 (0-100)
+  warmth: number;       // 温暖度 (0-100)
+  saturation: number;   // 饱和度 (0-100)
+  vocalSuppression: number; // 人声抑制 (0-100)
+  stereoWidth: number;  // 立体声宽度 (0-100)
+  asmrMode: boolean;    // ASMR模式
+  noiseType: 'white' | 'pink' | 'brown'; // 噪音类型
+}
+
 // 音频处理服务类
 export class AudioService {
   private player: Tone.Player | null = null;
@@ -18,8 +34,17 @@ export class AudioService {
   private stereoWidener: Tone.StereoWidener | null = null;
   private panner3D: Tone.Panner3D | null = null;
   private spatialGain: Tone.Gain | null = null;
+  // 新增的音效处理器
+  private warmthFilter: Tone.Filter | null = null;
+  private saturationDistortion: Tone.Distortion | null = null;
+  private vocalSuppressor: Tone.MidSideCompressor | null = null;
+  private masterGain: Tone.Gain | null = null;
+  private analyser: Tone.Analyser | null = null;
+  private startTime: number = 0;
+  
   private isLofiMode: boolean = false;
   private isInitialized: boolean = false;
+  private currentNoiseType: 'white' | 'pink' | 'brown' = 'pink';
 
   constructor() {
     this.initializeAudio();
@@ -33,21 +58,24 @@ export class AudioService {
         await Tone.start();
       }
 
+      // 创建主增益控制
+      this.masterGain = new Tone.Gain(0.7);
+
       // 创建音频处理效果器
       this.reverb = new Tone.Reverb({
         decay: 2.5,
-        wet: 0.3,
+        wet: 0.2,
         preDelay: 0.01
       });
 
       this.lowpass = new Tone.Filter({
-        frequency: 3000,
+        frequency: 8000,
         type: 'lowpass',
         rolloff: -12
       });
 
       this.highpass = new Tone.Filter({
-        frequency: 200,
+        frequency: 80,
         type: 'highpass',
         rolloff: -12
       });
@@ -60,9 +88,9 @@ export class AudioService {
       });
 
       this.eq = new Tone.EQ3({
-        low: -3,
+        low: 2,
         mid: 0,
-        high: -6,
+        high: -3,
         lowFrequency: 400,
         highFrequency: 2500
       });
@@ -78,19 +106,48 @@ export class AudioService {
       });
 
       this.distortion = new Tone.Distortion({
-        distortion: 0.4,
-        wet: 0.2
+        distortion: 0.2,
+        wet: 0.1
       });
 
       this.tremolo = new Tone.Tremolo({
         frequency: 4,
-        depth: 0.3,
-        wet: 0.4
+        depth: 0.2,
+        wet: 0.3
+      });
+
+      // 创建温暖度滤波器
+      this.warmthFilter = new Tone.Filter({
+        frequency: 1000,
+        type: 'lowshelf',
+        gain: 3
+      });
+
+      // 创建饱和度失真
+      this.saturationDistortion = new Tone.Distortion({
+        distortion: 0.1,
+        wet: 0.2
+      });
+
+      // 创建人声抑制器
+      this.vocalSuppressor = new Tone.MidSideCompressor({
+        mid: {
+          threshold: -30,
+          ratio: 8,
+          attack: 0.003,
+          release: 0.1
+        },
+        side: {
+          threshold: -20,
+          ratio: 2,
+          attack: 0.003,
+          release: 0.1
+        }
       });
 
       // 背景噪音
       this.noise = new Tone.Noise({
-        type: 'pink',
+        type: this.currentNoiseType,
         volume: -40
       });
 
@@ -112,6 +169,9 @@ export class AudioService {
 
       this.spatialGain = new Tone.Gain(1);
 
+      // 创建音频分析器
+      this.analyser = new Tone.Analyser('fft', 256);
+      
       // 等待混响加载完成
       await this.reverb.generate();
       
@@ -126,7 +186,7 @@ export class AudioService {
       }
 
       this.isInitialized = true;
-      console.log('Audio service initialized');
+      console.log('Audio service initialized with analyser');
     } catch (error) {
       console.error('Failed to initialize audio service:', error);
     }
@@ -152,12 +212,13 @@ export class AudioService {
         autostart: false
       });
 
-      // 连接音频处理链
-      this.connectAudioChain();
-
       // 等待音频加载完成
       await Tone.loaded();
-      console.log('Audio loaded successfully');
+      
+      // 音频加载完成后连接音频处理链
+      this.connectAudioChain();
+      
+      console.log('Audio loaded and chain connected');
     } catch (error) {
       console.error('Failed to load audio:', error);
       throw new Error('音频加载失败');
@@ -166,57 +227,54 @@ export class AudioService {
 
   // 连接音频处理链
   private connectAudioChain() {
-    if (!this.player || !this.reverb || !this.lowpass || !this.highpass || !this.compressor || !this.eq || !this.stereoWidener || !this.panner3D || !this.spatialGain) {
+    if (!this.player || !this.reverb || !this.lowpass || !this.highpass || !this.compressor || !this.eq || !this.stereoWidener || !this.panner3D || !this.spatialGain || !this.masterGain) {
       return;
     }
 
-    if (this.isLofiMode) {
-      // Lofi模式：应用所有效果，包括3D空间音效
-      this.player
-        .chain(
-          this.highpass,
-          this.lowpass,
-          this.bitCrusher,
-          this.distortion,
-          this.eq,
-          this.chorus,
-          this.tremolo,
-          this.compressor,
-          this.reverb,
-          this.stereoWidener,
-          this.panner3D,
-          this.spatialGain,
-          Tone.Destination
-        );
-    } else {
-      // 普通模式：应用基础效果和3D空间音效
-      this.player
-        .chain(
-          this.compressor,
-          this.stereoWidener,
-          this.panner3D,
-          this.spatialGain,
-          Tone.Destination
-        );
-    }
-
-    // 控制背景噪音
+    // 断开所有现有连接
+    this.player.disconnect();
     if (this.noise && this.noiseGain) {
-      // 将噪音也连接到3D空间处理器
-      this.noise.chain(this.noiseGain, this.spatialGain, Tone.Destination);
-      
-      if (this.isLofiMode) {
-        if (this.noise.state !== 'started') {
-          this.noise.start();
-        }
-      } else {
-        if (this.noise.state === 'started') {
-          this.noise.stop();
-        }
-      }
+      this.noise.disconnect();
+      this.noiseGain.disconnect();
+    }
+    if (this.analyser) {
+      this.analyser.disconnect();
     }
 
-    console.log(`Lofi mode ${this.isLofiMode ? 'enabled' : 'disabled'}`);
+    // 总是应用所有音效处理器，不区分Lofi模式
+    // 音效的强度通过updateAudioEffects方法中的参数控制
+    this.player
+      .chain(
+        this.highpass,
+        this.lowpass,
+        this.warmthFilter,
+        this.saturationDistortion,
+        this.vocalSuppressor,
+        this.bitCrusher,
+        this.distortion,
+        this.eq,
+        this.chorus,
+        this.tremolo,
+        this.compressor,
+        this.reverb,
+        this.stereoWidener,
+        this.panner3D,
+        this.spatialGain,
+        this.masterGain,
+        Tone.Destination
+      );
+
+    // 连接分析器到主增益控制器，用于音频可视化
+    if (this.analyser && this.masterGain) {
+      this.masterGain.connect(this.analyser);
+    }
+
+    // 连接背景噪音到主增益控制器
+    if (this.noise && this.noiseGain) {
+      this.noise.chain(this.noiseGain, this.masterGain);
+    }
+
+    console.log('Audio chain connected with all effects and analyser');
   }
 
   // 播放音频
@@ -231,6 +289,9 @@ export class AudioService {
         await Tone.start();
       }
 
+      // 记录开始时间
+      this.startTime = Tone.now();
+      
       this.player.start();
     } catch (error) {
       console.error('Failed to play audio:', error);
@@ -264,7 +325,10 @@ export class AudioService {
   // 获取当前播放时间
   getCurrentTime(): number {
     if (this.player && this.player.state === 'started') {
-      return Tone.Transport.seconds;
+      // 使用Tone.now()减去播放开始时间来计算当前播放时间
+      const now = Tone.now();
+      // 使用公共属性而不是私有属性
+      return Math.max(0, now - (this.startTime || 0));
     }
     return 0;
   }
@@ -281,9 +345,19 @@ export class AudioService {
   setCurrentTime(time: number): void {
     if (this.player && this.player.buffer.loaded) {
       const isPlaying = this.player.state === 'started';
+      const volume = this.player.volume.value;
+      
+      // 停止当前播放
       this.player.stop();
+      
+      // 如果之前在播放，从新位置开始播放
       if (isPlaying) {
-        this.player.start(0, time);
+        // 使用setTimeout确保stop操作完成
+        setTimeout(() => {
+          if (this.player) {
+            this.player.start('+0.1', time);
+          }
+        }, 100);
       }
     }
   }
@@ -291,42 +365,50 @@ export class AudioService {
   // 切换Lofi模式
   toggleLofiMode(enabled: boolean): void {
     this.isLofiMode = enabled;
-    
-    if (this.player) {
-      // 重新连接音频处理链
-      this.player.disconnect();
-      this.connectAudioChain();
-    }
+    console.log(`Lofi mode ${enabled ? 'enabled' : 'disabled'}`);
+    // 不需要重新连接音频链，因为所有效果都始终连接
+    // 效果的强度通过updateAudioEffects方法控制
   }
 
   /**
    * 更新音效参数
    * @param effects 音效参数对象
    */
-  updateAudioEffects(effects: {
-    speed: number;
-    lowpass: number;
-    highpass: number;
-    noise: number;
-    reverb: number;
-    spatial: number;
-  }): void {
+  updateAudioEffects(effects: AudioEffects): void {
     try {
       // 更新播放速度
       if (this.player) {
-        this.player.playbackRate = effects.speed / 100;
+        // effects.speed 范围是 50-150，对应播放速度 0.5-1.5
+        const playbackRate = effects.speed / 100;
+        const wasPlaying = this.player.state === 'started';
+        const currentTime = this.getCurrentTime();
+        
+        // 如果正在播放，需要停止后重新开始以应用新的播放速度
+        if (wasPlaying) {
+          this.player.stop();
+        }
+        
+        this.player.playbackRate = Math.max(0.25, Math.min(4, playbackRate));
+        console.log(`播放速度设置为: ${playbackRate}x (${effects.speed}%)`);
+        
+        // 如果之前在播放，从当前位置重新开始播放
+        if (wasPlaying) {
+          setTimeout(() => {
+            if (this.player) {
+              this.player.start(0, currentTime);
+            }
+          }, 50);
+        }
       }
 
       // 更新低通滤波器
       if (this.lowpass) {
-        const frequency = 20000 * (effects.lowpass / 100);
-        this.lowpass.frequency.value = Math.max(200, frequency);
+        this.lowpass.frequency.value = Math.max(1000, Math.min(20000, effects.lowpass));
       }
 
       // 更新高通滤波器
       if (this.highpass) {
-        const frequency = 2000 * (effects.highpass / 100);
-        this.highpass.frequency.value = Math.min(2000, frequency);
+        this.highpass.frequency.value = Math.max(20, Math.min(500, effects.highpass));
       }
 
       // 更新混响
@@ -334,13 +416,32 @@ export class AudioService {
         this.reverb.wet.value = effects.reverb / 100;
       }
 
-      // 更新白噪音
+      // 更新白噪音类型和强度
       if (this.noise && this.noiseGain) {
+        // 更新噪音类型
+        if (this.currentNoiseType !== effects.noiseType) {
+          this.currentNoiseType = effects.noiseType;
+          // 重新创建噪音源以改变类型
+          const wasStarted = this.noise.state === 'started';
+          if (wasStarted) {
+            this.noise.stop();
+          }
+          this.noise.dispose();
+          this.noise = new Tone.Noise({
+            type: effects.noiseType,
+            volume: -40
+          });
+          this.noise.chain(this.noiseGain, this.masterGain);
+          if (wasStarted && effects.noise > 0) {
+            this.noise.start();
+          }
+        }
+        
         if (effects.noise > 0) {
           if (this.noise.state !== 'started') {
             this.noise.start();
           }
-          this.noiseGain.gain.value = (effects.noise / 100) * 0.1; // 限制噪音音量
+          this.noiseGain.gain.value = (effects.noise / 100) * 0.05;
         } else {
           if (this.noise.state === 'started') {
             this.noise.stop();
@@ -349,12 +450,30 @@ export class AudioService {
         }
       }
 
-      // 3D空间音效：立体声宽度和空间定位
-      if (this.stereoWidener) {
-        // 立体声宽度：0-100% 映射到 0-1
-        this.stereoWidener.width.value = effects.spatial / 100;
+      // 更新温暖度
+      if (this.warmthFilter) {
+        this.warmthFilter.gain.value = (effects.warmth / 100) * 6; // 0-6dB增益
       }
 
+      // 更新饱和度
+      if (this.saturationDistortion) {
+        this.saturationDistortion.distortion = (effects.saturation / 100) * 0.5;
+        this.saturationDistortion.wet.value = (effects.saturation / 100) * 0.3;
+      }
+
+      // 更新人声抑制
+      if (this.vocalSuppressor) {
+        const intensity = effects.vocalSuppression / 100;
+        this.vocalSuppressor.mid.ratio.value = 1 + intensity * 15;
+        this.vocalSuppressor.mid.threshold.value = -30 + intensity * 20;
+      }
+
+      // 更新立体声宽度
+      if (this.stereoWidener) {
+        this.stereoWidener.width.value = effects.stereoWidth / 100;
+      }
+
+      // 3D空间音效：立体声宽度和空间定位
       if (this.panner3D && this.spatialGain) {
         // 3D定位：根据空间音效强度调整位置和增益
         const spatialIntensity = effects.spatial / 100;
@@ -371,6 +490,31 @@ export class AudioService {
       // 保持原有的合唱效果作为额外的空间感
       if (this.chorus) {
         this.chorus.wet.value = effects.spatial / 100 * 0.4;
+      }
+
+      // 更新ASMR模式
+      if (effects.asmrMode) {
+        if (this.reverb && this.tremolo) {
+          this.reverb.wet.value = Math.max(0.4, this.reverb.wet.value);
+          this.reverb.decay = 3.5;
+          this.tremolo.wet.value = 0.5;
+          this.tremolo.depth.value = 0.4;
+        }
+      } else {
+        if (this.reverb && this.tremolo) {
+          // 恢复正常混响设置（如果不是通过reverb参数设置的话）
+          if (effects.reverb <= 20) {
+            this.reverb.decay = 2.5;
+          }
+          this.tremolo.wet.value = 0.3;
+          this.tremolo.depth.value = 0.2;
+        }
+      }
+
+      // 更新处理强度（影响位深压缩和噪音）
+      const processingIntensity = Math.max(effects.noise, effects.saturation, effects.warmth) / 100;
+      if (this.bitCrusher) {
+        this.bitCrusher.bits.value = Math.max(1, Math.min(16, 16 - processingIntensity * 8));
       }
 
     } catch (error) {
@@ -398,12 +542,9 @@ export class AudioService {
   }
 
   // 获取音频分析数据（用于可视化）
+  // 获取音频分析器
   getAnalyser(): Tone.Analyser | null {
-    if (!this.player) return null;
-
-    const analyser = new Tone.Analyser('fft', 256);
-    this.player.connect(analyser);
-    return analyser;
+    return this.analyser;
   }
 
   // 检查是否正在播放

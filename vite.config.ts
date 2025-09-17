@@ -24,6 +24,9 @@ export default defineConfig({
     }), 
     tsconfigPaths(),
   ],
+  build: {
+    chunkSizeWarningLimit: 2000, // 设置chunk大小警告限制为2MB
+  },
   server: {
     proxy: {
       '/api': {

@@ -209,13 +209,19 @@ const Desktop: React.FC = () => {
 
   // 检查登录状态
   useEffect(() => {
-    if (!isLoggedIn || !user) {
+    const { isGuestMode } = useStore.getState();
+    
+    // 如果既不是登录状态也不是游客模式，跳转到首页
+    if (!isLoggedIn && !isGuestMode) {
       navigate('/');
       return;
     }
     
-    // 加载用户歌单
-    loadUserPlaylists();
+    // 只有在登录状态下才加载用户歌单
+    if (isLoggedIn && user) {
+      loadUserPlaylists();
+    }
+    
     setCurrentPage('desktop');
   }, [isLoggedIn, user, navigate, setCurrentPage]);
 
@@ -290,12 +296,12 @@ const Desktop: React.FC = () => {
   // 桌面图标配置
   const desktopIcons = [
     { id: 'mycomputer', icon: '/我的电脑.png', label: '我的电脑', x: 20, y: 20, action: () => {} },
-    { id: 'network', icon: '/W95-1  (60).png', label: '网上邻居', x: 20, y: 120, action: () => {} },
+    { id: 'network', icon: '/白白静听.png', label: '百百静听', x: 20, y: 120, action: () => {} },
     { id: 'music', icon: '/CD播放.png', label: '音乐播放器', x: 20, y: 220, action: () => setDesktopMusicPlayerOpen(true) },
-    { id: 'immersive', icon: '/W95-1  (92).png', label: '沉浸模式', x: 20, y: 320, action: () => navigate('/immersive') },
+    { id: 'immersive', icon: '/沉浸模式.png', label: '沉浸模式', x: 20, y: 320, action: () => navigate('/immersive') },
     { id: 'recycle', icon: '/回收站.png', label: '回收站', x: 20, y: 420, action: () => {} },
-    { id: 'settings', icon: '/W95-1  (60).png', label: '设置', x: 120, y: 20, action: () => {} },
-    { id: 'logout', icon: '/W95-1  (92).png', label: '注销', x: 120, y: 120, action: logout }
+    { id: 'settings', icon: '/设置.png', label: '设置', x: 120, y: 20, action: () => {} },
+    { id: 'logout', icon: '/注销.png', label: '注销', x: 120, y: 120, action: logout }
   ];
 
   return (

@@ -3,8 +3,29 @@ import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import { Slider } from 'react95';
 import { useStore } from '../store/useStore';
-import { audioService } from '../services/audioService';
+import { audioService, AudioEffects } from '../services/audioService';
 import TunnelTransition from './TunnelTransition';
+
+// 自定义Slider包装器，避免React95警告
+const CustomSlider: React.FC<{
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  onChange: (value: number) => void;
+  style?: React.CSSProperties;
+}> = ({ value, min, max, step, onChange, style }) => {
+  return (
+    <Slider
+      value={value}
+      min={min}
+      max={max}
+      step={step}
+      onChange={onChange}
+      style={style}
+    />
+  );
+};
 
 // CD播放器主容器
 const CDPlayerContainer = styled.div`
@@ -133,7 +154,7 @@ const AudioEffectsArea = styled.div`
   padding: 8px;
   background: #f0f0f0;
   border: 1px inset #c0c0c0;
-  max-height: 180px;
+  max-height: 220px;
   overflow-y: auto;
   overflow-x: hidden;
 `;
@@ -275,17 +296,23 @@ const CDPlayer: React.FC<CDPlayerProps> = ({ onClose }) => {
   const [showTransition, setShowTransition] = useState(false);
   
   // 默认音效参数
-  const defaultAudioEffects = {
-    speed: 100,        // 播放速度 (50-150%)
-    lowpass: 100,      // 低通滤波 (0-100%)
-    highpass: 0,       // 高通滤波 (0-100%)
-    noise: 0,          // 白噪音 (0-100%)
-    reverb: 0,         // 混响 (0-100%)
-    spatial: 0         // 3D空间音效 (0-100%)
+  const defaultAudioEffects: AudioEffects = {
+    speed: 100,           // 播放速度 (25-200)
+    lowpass: 8000,        // 低通滤波 (1000-20000 Hz)
+    highpass: 80,         // 高通滤波 (20-500 Hz)
+    noise: 20,            // 白噪音强度 (0-100)
+    reverb: 20,           // 混响强度 (0-100)
+    spatial: 0,           // 3D空间音效 (0-100)
+    warmth: 30,           // 温暖度 (0-100)
+    saturation: 20,       // 饱和度 (0-100)
+    vocalSuppression: 0,  // 人声抑制 (0-100)
+    stereoWidth: 50,      // 立体声宽度 (0-100)
+    asmrMode: false,      // ASMR模式
+    noiseType: 'pink'     // 噪音类型
   };
 
-  // 音效参数状态
-  const [audioEffects, setAudioEffects] = useState(defaultAudioEffects);
+  // 音效状态
+  const [audioEffects, setAudioEffects] = useState<AudioEffects>(defaultAudioEffects);
 
   // 获取所有艺术家列表
   const artists = Array.from(new Set(playback.playlist.map(song => song.artist)));
@@ -297,10 +324,24 @@ const CDPlayer: React.FC<CDPlayerProps> = ({ onClose }) => {
 
   // 更新播放进度
   useEffect(() => {
-    if (!isDragging && playback.duration > 0) {
-      setProgress((playback.currentTime / playback.duration) * 100);
+    let intervalId: NodeJS.Timeout;
+    
+    if (playback.isPlaying && !isDragging) {
+      intervalId = setInterval(() => {
+        const currentTime = audioService.getCurrentTime();
+        const duration = audioService.getDuration();
+        if (duration > 0) {
+          setProgress((currentTime / duration) * 100);
+        }
+      }, 100); // 每100ms更新一次进度
     }
-  }, [playback.currentTime, playback.duration, isDragging]);
+    
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [playback.isPlaying, isDragging]);
 
   // 初始化音效设置
   useEffect(() => {
@@ -313,21 +354,20 @@ const CDPlayer: React.FC<CDPlayerProps> = ({ onClose }) => {
    * @param effectType 音效类型
    * @param value 新的数值
    */
-  const handleEffectChange = (effectType: keyof typeof audioEffects, value: number) => {
-    setAudioEffects(prev => ({
-      ...prev,
-      [effectType]: value
-    }));
-    
-    // 应用音效到音频服务
-    audioService.updateAudioEffects({
+  const handleEffectChange = (effectType: keyof AudioEffects, value: number | string | boolean) => {
+    const newEffects = {
       ...audioEffects,
       [effectType]: value
-    });
+    };
+    
+    setAudioEffects(newEffects);
+    
+    // 立即应用音效
+    audioService.updateAudioEffects(newEffects);
   };
 
   /**
-   * 重置音效参数为默认值
+   * 重置音效参数
    */
   const resetAudioEffects = () => {
     setAudioEffects(defaultAudioEffects);
@@ -339,8 +379,16 @@ const CDPlayer: React.FC<CDPlayerProps> = ({ onClose }) => {
     if (playback.currentSong) {
       setSelectedArtist(playback.currentSong.artist);
       setSelectedTrack(playback.currentSong.name);
+    } else if (playback.playlist.length > 0 && !playback.currentSong) {
+      // 如果没有当前歌曲但有播放列表，自动选择第一首歌曲
+      const firstSong = playback.playlist[0];
+      setCurrentSong(firstSong);
+      setCurrentIndex(0);
+      setSelectedArtist(firstSong.artist);
+      setSelectedTrack(firstSong.name);
+      console.log('自动选择第一首歌曲:', firstSong.name);
     }
-  }, [playback.currentSong]);
+  }, [playback.currentSong, playback.playlist, setCurrentSong, setCurrentIndex]);
 
   // 处理艺术家选择
   const handleArtistChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
@@ -367,6 +415,7 @@ const CDPlayer: React.FC<CDPlayerProps> = ({ onClose }) => {
           console.log('音频加载成功，应用音效设置');
           // 应用当前音效设置
           audioService.updateAudioEffects(audioEffects);
+          console.log('Audio effects applied after loading song:', song.name);
           console.log('开始播放');
           audioService.play();
           setIsPlaying(true);
@@ -386,10 +435,13 @@ const CDPlayer: React.FC<CDPlayerProps> = ({ onClose }) => {
     const rect = event.currentTarget.getBoundingClientRect();
     const clickX = event.clientX - rect.left;
     const newProgress = (clickX / rect.width) * 100;
-    const newTime = (newProgress / 100) * playback.duration;
+    const duration = audioService.getDuration();
     
-    audioService.setCurrentTime(newTime);
-    setProgress(newProgress);
+    if (duration > 0) {
+      const newTime = (newProgress / 100) * duration;
+      audioService.setCurrentTime(newTime);
+      setProgress(newProgress);
+    }
   };
 
   // 播放控制函数
@@ -405,6 +457,7 @@ const CDPlayer: React.FC<CDPlayerProps> = ({ onClose }) => {
         audioService.loadAudio(prevSong.url).then(() => {
           // 应用当前音效设置
           audioService.updateAudioEffects(audioEffects);
+          console.log('Audio effects applied after loading previous song');
           audioService.play();
           setIsPlaying(true);
         }).catch(error => {
@@ -426,6 +479,7 @@ const CDPlayer: React.FC<CDPlayerProps> = ({ onClose }) => {
         audioService.loadAudio(nextSong.url).then(() => {
           // 应用当前音效设置
           audioService.updateAudioEffects(audioEffects);
+          console.log('Audio effects applied after loading next song');
           audioService.play();
           setIsPlaying(true);
         }).catch(error => {
@@ -446,11 +500,30 @@ const CDPlayer: React.FC<CDPlayerProps> = ({ onClose }) => {
   const handlePlayClick = () => {
     if (!playback.isPlaying) {
       // 如果当前没有播放，先播放音乐
-      togglePlay();
-      // 延迟一下确保音乐开始播放，然后显示过渡动画进入沉浸模式
-      setTimeout(() => {
-        setShowTransition(true);
-      }, 500);
+      if (playback.currentSong && playback.currentSong.url) {
+        audioService.loadAudio(playback.currentSong.url)
+          .then(() => {
+            console.log('音频加载成功，应用音效设置');
+            // 应用当前音效设置
+            audioService.updateAudioEffects(audioEffects);
+            console.log('开始播放');
+            return audioService.play();
+          })
+          .then(() => {
+            setIsPlaying(true);
+            // 延迟一下确保音乐开始播放，然后显示过渡动画进入沉浸模式
+            setTimeout(() => {
+              setShowTransition(true);
+            }, 500);
+          })
+          .catch(error => {
+            console.error('播放歌曲失败:', error);
+            alert('播放失败: ' + error.message);
+          });
+      } else {
+        console.error('没有可播放的歌曲');
+        alert('请先选择一首歌曲');
+      }
     } else {
       // 如果正在播放，直接显示过渡动画进入沉浸模式
       setShowTransition(true);
@@ -525,10 +598,10 @@ const CDPlayer: React.FC<CDPlayerProps> = ({ onClose }) => {
             <EffectRow>
               <EffectLabel>速度:</EffectLabel>
               <SliderContainer>
-                <Slider
+                <CustomSlider
                   value={audioEffects.speed}
-                  min={50}
-                  max={150}
+                  min={25}
+                  max={200}
                   step={5}
                   onChange={(value) => handleEffectChange('speed', value)}
                   style={{ width: '100%' }}
@@ -540,11 +613,11 @@ const CDPlayer: React.FC<CDPlayerProps> = ({ onClose }) => {
             <EffectRow>
               <EffectLabel>低通:</EffectLabel>
               <SliderContainer>
-                <Slider
+                <CustomSlider
                   value={audioEffects.lowpass}
-                  min={0}
-                  max={100}
-                  step={5}
+                  min={1000}
+                  max={20000}
+                  step={500}
                   onChange={(value) => handleEffectChange('lowpass', value)}
                   style={{ width: '100%' }}
                 />
@@ -555,11 +628,11 @@ const CDPlayer: React.FC<CDPlayerProps> = ({ onClose }) => {
             <EffectRow>
               <EffectLabel>高通:</EffectLabel>
               <SliderContainer>
-                <Slider
+                <CustomSlider
                   value={audioEffects.highpass}
-                  min={0}
-                  max={100}
-                  step={5}
+                  min={20}
+                  max={500}
+                  step={10}
                   onChange={(value) => handleEffectChange('highpass', value)}
                   style={{ width: '100%' }}
                 />
@@ -568,15 +641,30 @@ const CDPlayer: React.FC<CDPlayerProps> = ({ onClose }) => {
             </EffectRow>
             
             <EffectRow>
-              <EffectLabel>白噪:</EffectLabel>
+              <EffectLabel>噪音:</EffectLabel>
               <SliderContainer>
-                <Slider
+                <select
+                  value={audioEffects.noiseType}
+                  onChange={(e) => handleEffectChange('noiseType', e.target.value as 'white' | 'pink' | 'brown')}
+                  style={{ 
+                    width: '50px', 
+                    fontSize: '10px',
+                    backgroundColor: '#c0c0c0',
+                    border: '1px inset #c0c0c0',
+                    marginRight: '4px'
+                  }}
+                >
+                  <option value="white">白</option>
+                  <option value="pink">粉</option>
+                  <option value="brown">棕</option>
+                </select>
+                <CustomSlider
                   value={audioEffects.noise}
                   min={0}
                   max={100}
                   step={5}
                   onChange={(value) => handleEffectChange('noise', value)}
-                  style={{ width: '100%' }}
+                  style={{ width: '60px' }}
                 />
               </SliderContainer>
               <EffectValue>{audioEffects.noise}%</EffectValue>
@@ -585,7 +673,7 @@ const CDPlayer: React.FC<CDPlayerProps> = ({ onClose }) => {
             <EffectRow>
               <EffectLabel>混响:</EffectLabel>
               <SliderContainer>
-                <Slider
+                <CustomSlider
                   value={audioEffects.reverb}
                   min={0}
                   max={100}
@@ -598,9 +686,69 @@ const CDPlayer: React.FC<CDPlayerProps> = ({ onClose }) => {
             </EffectRow>
             
             <EffectRow>
+              <EffectLabel>温暖:</EffectLabel>
+              <SliderContainer>
+                <CustomSlider
+                  value={audioEffects.warmth}
+                  min={0}
+                  max={100}
+                  step={5}
+                  onChange={(value) => handleEffectChange('warmth', value)}
+                  style={{ width: '100%' }}
+                />
+              </SliderContainer>
+              <EffectValue>{audioEffects.warmth}%</EffectValue>
+            </EffectRow>
+            
+            <EffectRow>
+              <EffectLabel>饱和:</EffectLabel>
+              <SliderContainer>
+                <CustomSlider
+                  value={audioEffects.saturation}
+                  min={0}
+                  max={100}
+                  step={5}
+                  onChange={(value) => handleEffectChange('saturation', value)}
+                  style={{ width: '100%' }}
+                />
+              </SliderContainer>
+              <EffectValue>{audioEffects.saturation}%</EffectValue>
+            </EffectRow>
+            
+            <EffectRow>
+              <EffectLabel>人声:</EffectLabel>
+              <SliderContainer>
+                <CustomSlider
+                  value={audioEffects.vocalSuppression}
+                  min={0}
+                  max={100}
+                  step={5}
+                  onChange={(value) => handleEffectChange('vocalSuppression', value)}
+                  style={{ width: '100%' }}
+                />
+              </SliderContainer>
+              <EffectValue>{audioEffects.vocalSuppression}%</EffectValue>
+            </EffectRow>
+            
+            <EffectRow>
+              <EffectLabel>宽度:</EffectLabel>
+              <SliderContainer>
+                <CustomSlider
+                  value={audioEffects.stereoWidth}
+                  min={0}
+                  max={100}
+                  step={5}
+                  onChange={(value) => handleEffectChange('stereoWidth', value)}
+                  style={{ width: '100%' }}
+                />
+              </SliderContainer>
+              <EffectValue>{audioEffects.stereoWidth}%</EffectValue>
+            </EffectRow>
+            
+            <EffectRow>
               <EffectLabel>3D音效:</EffectLabel>
               <SliderContainer>
-                <Slider
+                <CustomSlider
                   value={audioEffects.spatial}
                   min={0}
                   max={100}
@@ -610,6 +758,19 @@ const CDPlayer: React.FC<CDPlayerProps> = ({ onClose }) => {
                 />
               </SliderContainer>
               <EffectValue>{audioEffects.spatial}%</EffectValue>
+            </EffectRow>
+            
+            <EffectRow>
+              <EffectLabel>ASMR:</EffectLabel>
+              <SliderContainer>
+                <input
+                  type="checkbox"
+                  checked={audioEffects.asmrMode}
+                  onChange={(e) => handleEffectChange('asmrMode', e.target.checked)}
+                  style={{ width: 'auto' }}
+                />
+              </SliderContainer>
+              <EffectValue>{audioEffects.asmrMode ? '开' : '关'}</EffectValue>
             </EffectRow>
             
             {/* 重置按钮 */}

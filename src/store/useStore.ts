@@ -218,9 +218,37 @@ export const useStore = create<AppState>((set, get) => ({
   
   togglePlay: () => {
     const { playback } = get();
-    set((state) => ({
-      playback: { ...state.playback, isPlaying: !playback.isPlaying }
-    }));
+    const { audioService } = require('../services/audioService');
+    
+    if (!playback.isPlaying) {
+      // 如果当前没有播放，开始播放
+      if (playback.currentSong && playback.currentSong.url) {
+        // 加载并播放当前歌曲
+        audioService.loadAudio(playback.currentSong.url)
+          .then(() => {
+            console.log('音频加载成功，开始播放:', playback.currentSong?.name);
+            return audioService.play();
+          })
+          .then(() => {
+            set((state) => ({
+              playback: { ...state.playback, isPlaying: true }
+            }));
+          })
+          .catch((error: any) => {
+            console.error('播放失败:', error);
+            alert('播放失败: ' + error.message);
+          });
+      } else {
+        console.error('没有可播放的歌曲或歌曲URL为空');
+        alert('没有可播放的歌曲');
+      }
+    } else {
+      // 如果正在播放，暂停播放
+      audioService.pause();
+      set((state) => ({
+        playback: { ...state.playback, isPlaying: false }
+      }));
+    }
   },
   
   // 重置状态
